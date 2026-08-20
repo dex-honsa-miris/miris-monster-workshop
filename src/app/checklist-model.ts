@@ -1,6 +1,6 @@
 import type { WorkshopStatus } from "../../server/status";
 
-export interface ChecklistItem { id: string; label: string; state: "todo" | "doing" | "done" | "error"; detail?: string }
+export interface ChecklistItem { id: string; label: string; state: "todo" | "doing" | "done" | "error"; detail?: string; href?: string }
 export interface Phase { title: string; items: ChecklistItem[] }
 
 const key = (id: string, label: string, k: { present: boolean; valid: boolean | null; detail: string } | undefined): ChecklistItem => {
@@ -9,17 +9,33 @@ const key = (id: string, label: string, k: { present: boolean; valid: boolean | 
   return { id, label, state: "done" };
 };
 
-export function checklistFrom(status: WorkshopStatus | null): Phase[] {
+/** Where each key lives; the checklist rows link straight to them. */
+const DASHBOARDS = {
+  "key-fal": "https://fal.ai/dashboard/keys",
+  "key-gateway": "https://vercel.com/dashboard",
+  "key-miris": "https://app.miris.com",
+} as const;
+
+export interface ChecklistEnv { inStackBlitz?: boolean }
+
+export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv = {}): Phase[] {
   const s = status;
   const keysDone = !!s && Object.values(s.keys).every((k) => k.present && k.valid === true);
   return [
     {
       title: "Get set up",
       items: [
-        { id: "stackblitz", label: "Sign into StackBlitz, then fork", state: keysDone ? "done" : "todo", detail: "Forks made signed out lose your .env" },
-        key("key-fal", "fal.ai key in .env", s?.keys.fal),
-        key("key-gateway", "Vercel AI Gateway key in .env", s?.keys.gateway),
-        key("key-miris", "Miris API token in .env", s?.keys.miris),
+        {
+          id: "stackblitz",
+          label: "Sign into StackBlitz, then fork",
+          // Running inside a WebContainer is detectable; being signed in is
+          // not, so the label itself stays the reminder.
+          state: env.inStackBlitz || keysDone ? "done" : "todo",
+          detail: "Forks made signed out lose your .env",
+        },
+        { ...key("key-fal", "fal.ai key in .env", s?.keys.fal), href: DASHBOARDS["key-fal"] },
+        { ...key("key-gateway", "Vercel AI Gateway key in .env", s?.keys.gateway), href: DASHBOARDS["key-gateway"] },
+        { ...key("key-miris", "Miris API token in .env", s?.keys.miris), href: DASHBOARDS["key-miris"] },
       ],
     },
     {

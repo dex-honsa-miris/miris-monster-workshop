@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { checklistFrom } from "./checklist-model";
+
+// StackBlitz previews run on webcontainer hostnames; detecting that is how
+// checklist item zero checks itself off (signed-in state is not detectable).
+const IN_STACKBLITZ =
+  typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
 import { fetchLore, postApprove, postConcept, postLoreRetry, postUpload } from "../pipeline-client";
@@ -40,7 +45,7 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => { directorRef.current?.showPhase(phase); }, [phase]);
-  useEffect(() => { directorRef.current?.showChecklist(checklistFrom(status)); }, [status]);
+  useEffect(() => { directorRef.current?.showChecklist(checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })); }, [status]);
   useEffect(() => { directorRef.current?.setRitualBusy(busy || phase === "summoning"); }, [busy, phase]);
   useEffect(() => { directorRef.current?.showMessage(note); }, [note]);
   useEffect(() => {
@@ -108,7 +113,9 @@ export function App(): JSX.Element {
     });
   };
 
+  const movedRef = useRef(0);
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    movedRef.current = 0;
     if ((e.target as HTMLElement).closest(".overlay")) return;
     dragRef.current = e.clientX;
     // Capture keeps the drag alive past the window edge; a synthetic or
@@ -116,11 +123,18 @@ export function App(): JSX.Element {
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture, still draggable */ }
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    directorRef.current?.pointerMove(e.clientX, e.clientY);
     if (dragRef.current === null) return;
+    movedRef.current += Math.abs(e.clientX - dragRef.current);
     directorRef.current?.applyOrbitDelta(e.clientX - dragRef.current);
     dragRef.current = e.clientX;
   };
-  const endDrag = (): void => { dragRef.current = null; };
+  const endDrag = (e?: ReactPointerEvent<HTMLDivElement>): void => {
+    // A press that never really moved is a tap; the scene may consume it
+    // (checklist rows open their dashboards).
+    if (e && dragRef.current !== null && movedRef.current < 6) directorRef.current?.tap(e.clientX, e.clientY);
+    dragRef.current = null;
+  };
 
   return (
     <div
@@ -129,8 +143,8 @@ export function App(): JSX.Element {
       style={{ position: "fixed", inset: 0 }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
+      onPointerUp={(e) => endDrag(e)}
+      onPointerCancel={() => endDrag()}
       onLostPointerCapture={endDrag}
     >
       <div className="overlay">

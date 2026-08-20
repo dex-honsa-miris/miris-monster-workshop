@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Phase } from "../app/checklist-model";
+import type { ChecklistItem, Phase } from "../app/checklist-model";
 import type { MonsterLore } from "../../server/lore-schema";
 
 export function wrapText(text: string, maxChars: number): string[] {
@@ -40,6 +40,8 @@ export class CanvasCard {
     mat.toneMapped = false;
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH), mat);
   }
+  get pxWidth(): number { return this.#canvas.width; }
+  get pxHeight(): number { return this.#canvas.height; }
   paint(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): void {
     const ctx = this.#canvas.getContext("2d")!;
     ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
@@ -65,30 +67,79 @@ function panel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.stroke();
 }
 
-export function paintChecklist(card: CanvasCard, phases: Phase[]): void {
+// --- checklist layout -------------------------------------------------------
+// The layout is a pure function so the director can hit-test pointer events
+// against the SAME row positions the painter draws, and so tests can cover it
+// without a canvas. Painter and hit-test must never compute geometry twice.
+
+export interface ChecklistRow { id: string; href?: string; y0: number; y1: number }
+interface ChecklistEntry {
+  kind: "phase" | "item";
+  y: number;
+  title?: string;
+  item?: ChecklistItem;
+  detailLines?: string[];
+}
+
+export function layoutChecklist(phases: Phase[]): { entries: ChecklistEntry[]; rows: ChecklistRow[] } {
+  const entries: ChecklistEntry[] = [];
+  const rows: ChecklistRow[] = [];
+  let y = 52;
+  for (const phase of phases) {
+    entries.push({ kind: "phase", y, title: phase.title });
+    y += 30;
+    for (const item of phase.items) {
+      const detailLines = item.detail && item.state === "error" ? wrapText(item.detail, 52) : [];
+      entries.push({ kind: "item", y, item, detailLines });
+      rows.push({ id: item.id, href: item.href, y0: y - 20, y1: y + 8 });
+      y += 26 + detailLines.length * 19;
+    }
+    y += 14;
+  }
+  return { entries, rows };
+}
+
+/** The row under a canvas-space point, or null. x only needs to be on the card body. */
+export function checklistRowAt(rows: ChecklistRow[], xPx: number, yPx: number, cardWidth: number): ChecklistRow | null {
+  if (xPx < 16 || xPx > cardWidth - 16) return null;
+  return rows.find((r) => yPx >= r.y0 && yPx <= r.y1) ?? null;
+}
+
+export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: string | null = null): void {
+  const { entries } = layoutChecklist(phases);
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
-    let y = 52;
-    for (const phase of phases) {
-      ctx.fillStyle = ACCENT;
-      ctx.font = "600 22px system-ui";
-      ctx.fillText(phase.title.toUpperCase(), 28, y);
-      y += 30;
-      ctx.font = "20px system-ui";
-      for (const item of phase.items) {
-        ctx.fillStyle = STATE_COLOR[item.state];
-        ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, y);
-        ctx.fillStyle = item.state === "done" ? "#8f8798" : INK;
-        ctx.fillText(item.label, 54, y);
-        y += 26;
-        if (item.detail && item.state === "error") {
-          ctx.fillStyle = STATE_COLOR.error;
-          ctx.font = "15px system-ui";
-          for (const line of wrapText(item.detail, 52)) { ctx.fillText(line, 54, y); y += 19; }
-          ctx.font = "20px system-ui";
-        }
+    for (const e of entries) {
+      if (e.kind === "phase") {
+        ctx.fillStyle = ACCENT;
+        ctx.font = "600 22px system-ui";
+        ctx.fillText(e.title!.toUpperCase(), 28, e.y);
+        continue;
       }
-      y += 14;
+      const item = e.item!;
+      const hovered = hoverId !== null && item.id === hoverId;
+      if (hovered) {
+        ctx.fillStyle = "#241d2c";
+        ctx.beginPath();
+        ctx.roundRect(20, e.y - 20, w - 40, 28, 8);
+        ctx.fill();
+      }
+      ctx.font = "20px system-ui";
+      ctx.fillStyle = STATE_COLOR[item.state];
+      ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
+      ctx.fillStyle = hovered ? "#f4efe4" : item.state === "done" ? "#8f8798" : INK;
+      ctx.fillText(item.label, 54, e.y);
+      if (item.href) {
+        // A quiet affordance: linked rows carry a small arrow, brighter on hover.
+        ctx.fillStyle = hovered ? ACCENT : "#5c5566";
+        ctx.fillText("→", w - 44, e.y);
+      }
+      if (e.detailLines!.length) {
+        ctx.fillStyle = STATE_COLOR.error;
+        ctx.font = "15px system-ui";
+        let dy = e.y + 19;
+        for (const line of e.detailLines!) { ctx.fillText(line, 54, dy); dy += 19; }
+      }
     }
   });
 }

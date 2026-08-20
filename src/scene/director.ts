@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { anchorFor, cardPositionFor, placeAnnotationCard } from "./annotations";
-import { CanvasCard, paintAnnotation, paintChecklist, paintConcept, paintMessage, paintStats } from "./cards";
+import { CanvasCard, checklistRowAt, layoutChecklist, paintAnnotation, paintChecklist, paintConcept, paintMessage, paintStats } from "./cards";
 import { Pedestal } from "./pedestal";
 import { RitualCircle } from "./ritual";
 import { SceneStage } from "./stage";
@@ -38,6 +38,11 @@ export class SceneDirector {
   #hasMessage = false;
   #disposed = false;
 
+  #checklistPhases: Phase[] = [];
+  #checklistHover: string | null = null;
+  readonly #raycaster = new THREE.Raycaster();
+  readonly #ndc = new THREE.Vector2();
+
   #monster: THREE.Object3D | null = null;
   #modelUrl: string | null = null;
   #loading: Promise<boolean> | null = null;
@@ -63,6 +68,8 @@ export class SceneDirector {
       this.#pedestal.update(dt);
       this.#edgeAlign(this.#checklist.mesh, -1, 1.25, 0.9);
       this.#edgeAlign(this.#stats.mesh, 1, 1.2, 0.9);
+      this.#fitCentered(this.#concept.mesh, 0.55);
+      this.#fitCentered(this.#message.mesh, 1.5);
       this.#billboard(this.#checklist.mesh);
       this.#billboard(this.#concept.mesh);
       this.#billboard(this.#stats.mesh);
@@ -80,7 +87,27 @@ export class SceneDirector {
   }
 
   showChecklist(phases: Phase[]): void {
-    paintChecklist(this.#checklist, phases);
+    this.#checklistPhases = phases;
+    paintChecklist(this.#checklist, phases, this.#checklistHover);
+  }
+
+  /** Hover feedback for the checklist card; safe to call every pointermove. */
+  pointerMove(clientX: number, clientY: number): void {
+    const row = this.#checklistRowAt(clientX, clientY);
+    const hover = row?.href ? row.id : null;
+    if (hover !== this.#checklistHover) {
+      this.#checklistHover = hover;
+      paintChecklist(this.#checklist, this.#checklistPhases, hover);
+      this.#stage.renderer.domElement.style.cursor = hover ? "pointer" : "";
+    }
+  }
+
+  /** A click that was not a drag. Returns true when the scene consumed it. */
+  tap(clientX: number, clientY: number): boolean {
+    const row = this.#checklistRowAt(clientX, clientY);
+    if (!row?.href) return false;
+    window.open(row.href, "_blank", "noopener");
+    return true;
   }
 
   showConcept(c: ConceptView): void {
@@ -149,14 +176,47 @@ export class SceneDirector {
     }
   }
 
-  /** Keeps a side card just inside the frustum edge at its own depth. */
-  #edgeAlign(mesh: THREE.Mesh, side: -1 | 1, y: number, z: number): void {
+  #halfViewAt(z: number): number {
     const cam = this.#stage.camera;
     const dist = Math.max(0.5, cam.position.z - z);
-    const halfView = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * dist * cam.aspect;
+    return Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * dist * cam.aspect;
+  }
+
+  /** Keeps a side card inside the frustum at its own depth, SHRINKING it when
+   * the viewport is narrower than the card (StackBlitz preview panes, phones).
+   * As the view narrows the card scales down and drifts toward center rather
+   * than sliding off screen. */
+  #edgeAlign(mesh: THREE.Mesh, side: -1 | 1, y: number, z: number): void {
+    const halfView = this.#halfViewAt(z);
     const geo = mesh.geometry as THREE.PlaneGeometry;
-    const halfCard = (geo.parameters.width ?? 1) / 2;
-    mesh.position.set(side * Math.max(halfCard + 0.15, halfView - halfCard - 0.08), y, z);
+    const width = geo.parameters.width ?? 1;
+    const s = Math.min(1, (2 * halfView - 0.16) / width);
+    mesh.scale.setScalar(Math.max(0.05, s));
+    const halfCard = (width * mesh.scale.x) / 2;
+    mesh.position.set(side * Math.max(0, halfView - halfCard - 0.08), y, z);
+  }
+
+  /** Centered cards (concept, message) just shrink to fit narrow viewports. */
+  #fitCentered(mesh: THREE.Mesh, z: number): void {
+    const halfView = this.#halfViewAt(z);
+    const geo = mesh.geometry as THREE.PlaneGeometry;
+    const width = geo.parameters.width ?? 1;
+    mesh.scale.setScalar(Math.max(0.05, Math.min(1, (2 * halfView * 0.94) / width)));
+  }
+
+  #checklistRowAt(clientX: number, clientY: number): ReturnType<typeof checklistRowAt> {
+    if (!this.#checklist.mesh.visible || this.#checklistPhases.length === 0) return null;
+    const el = this.#stage.renderer.domElement;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    this.#ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.#raycaster.setFromCamera(this.#ndc, this.#stage.camera);
+    const hit = this.#raycaster.intersectObject(this.#checklist.mesh, false)[0];
+    if (!hit?.uv) return null;
+    // CanvasTexture default flipY: uv v=1 is the TOP of the canvas.
+    const xPx = hit.uv.x * this.#checklist.pxWidth;
+    const yPx = (1 - hit.uv.y) * this.#checklist.pxHeight;
+    return checklistRowAt(layoutChecklist(this.#checklistPhases).rows, xPx, yPx, this.#checklist.pxWidth);
   }
 
   /** Faces the camera, correcting for a rotating parent (the turntable). */

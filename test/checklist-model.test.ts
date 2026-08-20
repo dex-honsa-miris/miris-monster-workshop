@@ -50,3 +50,19 @@ describe("checklistFrom", () => {
     expect(done[3]!.items[0]!.detail).toBe("https://x.vercel.app");
   });
 });
+
+describe("checklistFrom environment", () => {
+  it("checks item zero when running inside StackBlitz", () => {
+    const phases = checklistFrom(BASE, { inStackBlitz: true });
+    expect(phases[0]!.items[0]!.state).toBe("done");
+    const local = checklistFrom(BASE, { inStackBlitz: false });
+    expect(local[0]!.items[0]!.state).toBe("todo");
+  });
+  it("key rows link to their dashboards", () => {
+    const setup = checklistFrom(BASE)[0]!;
+    const byId = Object.fromEntries(setup.items.map((i) => [i.id, i]));
+    expect(byId["key-fal"]!.href).toContain("fal.ai");
+    expect(byId["key-gateway"]!.href).toContain("vercel.com");
+    expect(byId["key-miris"]!.href).toContain("miris.com");
+  });
+});
