@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monster</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0810; }
+      body {
+        font-family: system-ui, sans-serif;
+        color: #e8e2d6;
+        background: radial-gradient(circle at 50% 32%, #241b30 0%, #0b0810 70%);
+      }
+      #stage { position: fixed; inset: 0; display: block; touch-action: none; }
+      #status {
+        position: fixed;
+        left: 50%;
+        bottom: 12%;
+        transform: translateX(-50%);
+        max-width: 32rem;
+        padding: 0.6rem 1rem;
+        border: 1px solid #c9954a;
+        border-radius: 10px;
+        background: rgba(20, 16, 24, 0.92);
+        font-size: 0.95rem;
+        text-align: center;
+      }
+      #hint {
+        position: fixed;
+        left: 50%;
+        bottom: 1.2rem;
+        transform: translateX(-50%);
+        color: #8f8798;
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status" hidden></p>
+    <p id="hint">drag to turn</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
