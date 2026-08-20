@@ -3,7 +3,7 @@ export const MONSTER_ELEMENTS = ["ember", "tide", "bloom", "storm", "umbra", "ch
 export function sanitizeUserPrompt(raw: string): string {
   return raw
     .replace(/https?:\/\/\S+/gi, " ")
-    .replace(/ignore previous[^.]*/gi, " ")
+    .replace(/ignore\s+previous[^.]*/gi, " ")
     .replace(/\b(system|assistant)\s*:/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
