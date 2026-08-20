@@ -31,3 +31,28 @@ export function cardPositionFor(anchor: THREE.Vector3, outward: THREE.Vector3, b
   p.y = Math.max(0.05, p.y);
   return p;
 }
+
+const CARD_MIN_Y = 0.62;     // just above the pedestal rim (top at y = 0.5)
+const CARD_MAX_Y = 2.15;     // below the top of the default camera frustum
+const CARD_MIN_RADIUS = 1.2; // outside the pedestal body (radius ~1.0)
+
+/**
+ * Keeps an annotation card in view. A downward slot (base, or anything low on
+ * a squat monster) would otherwise sit inside the pedestal where it cannot be
+ * seen, and a crown slot on a tall monster would ride off the top of the
+ * frame. Clamp both ends; the leader line still points at the surface.
+ */
+export function placeAnnotationCard(p: THREE.Vector3): THREE.Vector3 {
+  p.y = Math.min(p.y, CARD_MAX_Y);
+  if (p.y >= CARD_MIN_Y) return p;
+  p.y = CARD_MIN_Y;
+  const flat = Math.hypot(p.x, p.z);
+  if (flat < 1e-4) {
+    p.z = CARD_MIN_RADIUS;
+  } else if (flat < CARD_MIN_RADIUS) {
+    const k = CARD_MIN_RADIUS / flat;
+    p.x *= k;
+    p.z *= k;
+  }
+  return p;
+}

@@ -1,0 +1,15 @@
+{
+  "assetId": "",
+  "lore": {
+    "name": "Unsummoned",
+    "epithet": "the Placeholder",
+    "lore": "No monster has been baked into this viewer yet. The deploy script overwrites this file with a real assetId and the lore document it generated, then rebuilds.",
+    "element": "umbra",
+    "stats": { "might": 1, "agility": 1, "arcana": 1, "mischief": 1, "resolve": 1 },
+    "annotations": [
+      { "slot": "crown", "label": "placeholder", "blurb": "Replaced at deploy time." },
+      { "slot": "core", "label": "placeholder", "blurb": "Replaced at deploy time." },
+      { "slot": "base", "label": "placeholder", "blurb": "Replaced at deploy time." }
+    ]
+  }
+}

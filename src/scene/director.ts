@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { anchorFor, cardPositionFor } from "./annotations";
+import { anchorFor, cardPositionFor, placeAnnotationCard } from "./annotations";
 import { CanvasCard, paintAnnotation, paintChecklist, paintConcept, paintMessage, paintStats } from "./cards";
 import { Pedestal } from "./pedestal";
 import { RitualCircle } from "./ritual";
@@ -17,31 +17,6 @@ export interface ConceptView {
 
 const ACCENT = 0xc9954a;
 const MESSAGE_BODY_MAX = 240;
-
-const CARD_MIN_Y = 0.62;     // just above the pedestal rim (top at y = 0.5)
-const CARD_MAX_Y = 2.15;     // below the top of the default camera frustum
-const CARD_MIN_RADIUS = 1.2; // outside the pedestal body (radius ~1.0)
-
-/**
- * Keeps an annotation card in view. A downward slot (base, or anything low on
- * a squat monster) would otherwise sit inside the pedestal where it cannot be
- * seen, and a crown slot on a tall monster would ride off the top of the
- * frame. Clamp both ends; the leader line still points at the surface.
- */
-function placeAnnotationCard(p: THREE.Vector3): THREE.Vector3 {
-  p.y = Math.min(p.y, CARD_MAX_Y);
-  if (p.y >= CARD_MIN_Y) return p;
-  p.y = CARD_MIN_Y;
-  const flat = Math.hypot(p.x, p.z);
-  if (flat < 1e-4) {
-    p.z = CARD_MIN_RADIUS;
-  } else if (flat < CARD_MIN_RADIUS) {
-    const k = CARD_MIN_RADIUS / flat;
-    p.x *= k;
-    p.z *= k;
-  }
-  return p;
-}
 
 /**
  * The one place that knows three.js in the app layer. React holds a single

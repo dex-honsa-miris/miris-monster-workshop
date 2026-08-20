@@ -8,10 +8,14 @@
     "typecheck": "tsc --noEmit",
     "doctor": "tsx scripts/doctor.ts",
     "generate": "tsx scripts/generate.ts",
-    "deploy": "tsx scripts/deploy.ts"
+    "deploy": "tsx scripts/deploy.ts",
+    "dev:viewer": "vite --config viewer/vite.config.ts",
+    "build:viewer": "vite build --config viewer/vite.config.ts && tsx scripts/copy-engine.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^1.0.0",
+    "@miris-inc/core": "0.0.8-dc2d7ec",
+    "@miris-inc/three": "0.0.8-dc2d7ec",
     "ai": "^5.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
