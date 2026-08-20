@@ -22,6 +22,11 @@ export class RitualCircle {
     this.group.add(this.#points);
   }
   setIntensity(v: number): void { this.#intensity = THREE.MathUtils.clamp(v, 0.2, 1); }
+  dispose(): void {
+    this.#points.removeFromParent();
+    this.#points.geometry.dispose();
+    this.#material.dispose();
+  }
   update(dt: number, t: number): void {
     this.group.rotation.y += dt * (0.3 + this.#intensity * 1.4);
     this.#material.size = 0.015 + this.#intensity * 0.03;

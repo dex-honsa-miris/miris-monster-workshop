@@ -14,6 +14,8 @@ export function fitOnPedestal(
 export class Pedestal {
   readonly group = new THREE.Group();
   readonly mount = new THREE.Group();
+  readonly #body: THREE.Mesh;
+  readonly #rim: THREE.Mesh;
   constructor() {
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.9, 1.0, 0.5, 48),
@@ -26,6 +28,8 @@ export class Pedestal {
     );
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 0.5;
+    this.#body = body;
+    this.#rim = rim;
     this.group.add(body, rim, this.mount);
   }
   setMonster(gltfScene: THREE.Object3D): void {
@@ -45,5 +49,15 @@ export class Pedestal {
   }
   update(dt: number): void {
     this.mount.rotation.y += dt * 0.15;
+  }
+  /** Releases the pedestal's own GPU resources. The mounted monster is owned
+   *  by whoever loaded it, so it is only detached here, not disposed. */
+  dispose(): void {
+    this.mount.clear();
+    for (const mesh of [this.#body, this.#rim]) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
   }
 }

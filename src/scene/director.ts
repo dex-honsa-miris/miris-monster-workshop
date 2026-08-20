@@ -157,6 +157,8 @@ export class SceneDirector {
     this.#clearAnnotations();
     this.#disposeMonster();
     for (const card of [this.#checklist, this.#concept, this.#stats, this.#message]) card.dispose();
+    this.#ritual.dispose();
+    this.#pedestal.dispose();
     this.#stage.dispose();
   }
 
