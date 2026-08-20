@@ -44,4 +44,14 @@ describe("collectFiles", () => {
     expect(Buffer.from(byName["index.html"]!, "base64").toString()).toBe("<html>");
     expect(byName["assets/a.js"]).toBeDefined();
   });
+
+  it("declares base64 encoding on every entry so Vercel does not treat data as UTF-8", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "dist-"));
+    mkdirSync(join(dir, "assets"), { recursive: true });
+    writeFileSync(join(dir, "index.html"), "<html>");
+    writeFileSync(join(dir, "assets", "a.js"), "js");
+    const files = await collectFiles(dir);
+    expect(files.length).toBeGreaterThan(0);
+    for (const f of files) expect(f.encoding).toBe("base64");
+  });
 });

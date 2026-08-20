@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { checklistFrom } from "./checklist-model";
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
-import { fetchLore, postApprove, postConcept, postUpload } from "../pipeline-client";
+import { fetchLore, postApprove, postConcept, postLoreRetry, postUpload } from "../pipeline-client";
 import { SceneDirector } from "../scene/director";
 import type { Concept } from "../../server/state";
 
@@ -102,6 +102,12 @@ export function App(): JSX.Element {
     });
   };
 
+  const onRetryLore = (): void => {
+    void run("The lore retry did not start", async () => {
+      await postLoreRetry();
+    });
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if ((e.target as HTMLElement).closest(".overlay")) return;
     dragRef.current = e.clientX;
@@ -156,6 +162,13 @@ export function App(): JSX.Element {
         )}
 
         {phase === "summoning" && <p className="hint">Summoning your monster. This takes a minute or two.</p>}
+
+        {(phase === "summoning" || phase === "reveal") && status?.lore.status === "failed" && (
+          <div className="row">
+            <p className="hint">The lore did not come through.</p>
+            <button className="btn" disabled={busy} onClick={onRetryLore}>Retry lore</button>
+          </div>
+        )}
 
         {phase === "reveal" && !assetId && (
           <div className="row">

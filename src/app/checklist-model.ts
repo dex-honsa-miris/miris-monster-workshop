@@ -32,7 +32,11 @@ export function checklistFrom(status: WorkshopStatus | null): Phase[] {
           state: s?.model.status === "done" ? "done" : s?.model.status === "running" ? "doing" : s?.model.status === "failed" ? "error" : "todo",
           detail: s?.model.error ?? undefined,
         },
-        { id: "lore", label: "Lore written", state: s?.lore.ready ? "done" : "todo" },
+        {
+          id: "lore", label: "Lore written",
+          state: s?.lore.ready ? "done" : s?.lore.status === "failed" ? "error" : s?.lore.status === "running" ? "doing" : "todo",
+          detail: s?.lore.status === "failed" ? (s.lore.error ?? undefined) : undefined,
+        },
       ],
     },
     {

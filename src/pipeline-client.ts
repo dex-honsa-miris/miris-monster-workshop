@@ -14,6 +14,7 @@ export const fetchStatus = (): Promise<WorkshopStatus> => call("/api/status");
 export const postConcept = (prompt: string): Promise<Concept> => call("/api/concept", post({ prompt }));
 export const postApprove = (conceptId: string): Promise<{ started: boolean }> => call("/api/approve", post({ conceptId }));
 export const postUpload = (): Promise<{ assetId: string; reused: boolean }> => call("/api/upload", post({}));
+export const postLoreRetry = (): Promise<{ started: boolean }> => call("/api/lore/retry", post({}));
 export const fetchLore = async (): Promise<MonsterLore | null> => {
   const r = await fetch("/api/lore");
   if (r.status === 404) return null;

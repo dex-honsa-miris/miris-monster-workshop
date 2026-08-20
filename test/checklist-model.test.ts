@@ -10,7 +10,7 @@ const BASE: WorkshopStatus = {
   },
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },
-  lore: { ready: false },
+  lore: { ready: false, status: "none", error: null },
   upload: { glbSha: null, assetId: null, state: "none", error: null },
   deployment: { url: null },
 };
@@ -30,6 +30,15 @@ describe("checklistFrom", () => {
     const failed = checklistFrom({ ...BASE, model: { status: "failed", glbPath: null, error: "boom" } });
     expect(failed[1]!.items.find((i) => i.id === "model")!.state).toBe("error");
   });
+  it("shows lore as doing while running and error with detail on failure", () => {
+    const doing = checklistFrom({ ...BASE, lore: { ready: false, status: "running", error: null } });
+    expect(doing[1]!.items.find((i) => i.id === "lore")!.state).toBe("doing");
+    const failed = checklistFrom({ ...BASE, lore: { ready: false, status: "failed", error: "lore boom" } });
+    const loreItem = failed[1]!.items.find((i) => i.id === "lore")!;
+    expect(loreItem.state).toBe("error");
+    expect(loreItem.detail).toBe("lore boom");
+  });
+
   it("null status renders an all-todo checklist (app booting)", () => {
     const phases = checklistFrom(null);
     expect(phases.length).toBe(4);

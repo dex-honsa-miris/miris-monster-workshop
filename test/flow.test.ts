@@ -10,7 +10,7 @@ const status = (over: Partial<WorkshopStatus>): WorkshopStatus => ({
   },
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },
-  lore: { ready: false },
+  lore: { ready: false, status: "none", error: null },
   upload: { glbSha: null, assetId: null, state: "none", error: null },
   deployment: { url: null },
   ...over,

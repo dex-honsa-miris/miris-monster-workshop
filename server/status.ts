@@ -12,7 +12,7 @@ export interface WorkshopStatus {
   keys: { fal: KeyStatus; gateway: KeyStatus; miris: KeyStatus };
   concept: { count: number; approved: boolean };
   model: WorkshopState["model"];
-  lore: { ready: boolean };
+  lore: { ready: boolean; status: string; error: string | null };
   upload: WorkshopState["upload"];
   deployment: { url: string | null };
 }
@@ -53,7 +53,7 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
     keys: { fal, gateway: gw, miris },
     concept: { count, approved: state.approvedConceptId !== null },
     model: glb && state.model.status === "none" ? { ...state.model, status: "done" } : state.model,
-    lore: { ready: lore },
+    lore: { ready: lore, status: state.loreStatus.status, error: state.loreStatus.error },
     upload: state.upload,
     deployment: { url: dep?.url ?? null },
   };

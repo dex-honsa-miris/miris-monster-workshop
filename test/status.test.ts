@@ -34,4 +34,11 @@ describe("buildStatus", () => {
     expect(s.model.status).toBe("none");
     expect(s.deployment.url).toBeNull();
   });
+
+  it("carries loreStatus into the lore status/error fields, independent of file readiness", async () => {
+    const failed = await buildStatus(deps({ state: async () => ({ ...defaultState(), approvedConceptId: "c1", loreStatus: { status: "failed", error: "boom" } }) }));
+    expect(failed.lore).toEqual({ ready: false, status: "failed", error: "boom" });
+    const done = await buildStatus(deps({ artifacts: { conceptCount: async () => 2, glbExists: async () => false, loreExists: async () => true }, state: async () => ({ ...defaultState(), approvedConceptId: "c1", loreStatus: { status: "done", error: null } }) }));
+    expect(done.lore).toEqual({ ready: true, status: "done", error: null });
+  });
 });

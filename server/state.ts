@@ -7,6 +7,7 @@ export interface WorkshopState {
   approvedConceptId: string | null;
   model: { status: "none" | "running" | "done" | "failed"; glbPath: string | null; error: string | null };
   lore: unknown | null;
+  loreStatus: { status: "none" | "running" | "done" | "failed"; error: string | null };
   upload: { glbSha: string | null; assetId: string | null; state: "none" | "uploading" | "processing" | "ready" | "failed"; error: string | null };
 }
 
@@ -19,6 +20,7 @@ export function defaultState(): WorkshopState {
     approvedConceptId: null,
     model: { status: "none", glbPath: null, error: null },
     lore: null,
+    loreStatus: { status: "none", error: null },
     upload: { glbSha: null, assetId: null, state: "none", error: null },
   };
 }
@@ -38,6 +40,7 @@ async function doPatch(patch: Partial<WorkshopState>): Promise<WorkshopState> {
     ...cur,
     ...patch,
     model: { ...cur.model, ...(patch.model ?? {}) },
+    loreStatus: { ...cur.loreStatus, ...(patch.loreStatus ?? {}) },
     upload: { ...cur.upload, ...(patch.upload ?? {}) },
   };
   await mkdir(workshopDir(), { recursive: true });

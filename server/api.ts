@@ -28,6 +28,18 @@ const hintFor = (e: unknown): string => {
   return "Run npm run doctor in the terminal for a full credential check.";
 };
 
+async function runLoreTask(prompt: string): Promise<void> {
+  await patchState({ loreStatus: { status: "running", error: null } });
+  try {
+    const lore = await generateLore(prompt);
+    await writeFile(loreFile(), JSON.stringify(lore, null, 2));
+    await patchState({ lore, loreStatus: { status: "done", error: null } });
+  } catch (e) {
+    console.warn("[workshop] lore generation failed:", e);
+    await patchState({ loreStatus: { status: "failed", error: String(e) } });
+  }
+}
+
 const routes: Record<string, Handler> = {
   "GET /api/status": async () => ({
     status: 200,
@@ -64,6 +76,9 @@ const routes: Record<string, Handler> = {
 
   "POST /api/approve": async (body) => {
     const s = await readState();
+    if (s.model.status === "running") {
+      return { status: 409, json: { error: "already summoning", hint: "Your monster is already on the way." } };
+    }
     const concept = s.concepts.find((c) => c.id === body.conceptId);
     if (!concept) return { status: 404, json: { error: "unknown concept", hint: "Generate a concept first." } };
     await patchState({ approvedConceptId: concept.id, model: { status: "running", glbPath: null, error: null } });
@@ -79,15 +94,17 @@ const routes: Record<string, Handler> = {
         await patchState({ model: { status: "failed", glbPath: null, error: String(e) } });
       }
     })().catch((e) => console.warn("[workshop] background task failed:", e));
-    void (async () => {
-      try {
-        const lore = await generateLore(concept.prompt);
-        await writeFile(loreFile(), JSON.stringify(lore, null, 2));
-        await patchState({ lore });
-      } catch (e) {
-        console.warn("[workshop] lore generation failed:", e);
-      }
-    })().catch((e) => console.warn("[workshop] background task failed:", e));
+    void runLoreTask(concept.prompt).catch((e) => console.warn("[workshop] background task failed:", e));
+    return { status: 202, json: { started: true } };
+  },
+
+  "POST /api/lore/retry": async () => {
+    const s = await readState();
+    const concept = s.approvedConceptId ? s.concepts.find((c) => c.id === s.approvedConceptId) : undefined;
+    if (s.loreStatus.status !== "failed" || !concept) {
+      return { status: 409, json: { error: "no failed lore to retry", hint: "Approve a concept and let it fail first." } };
+    }
+    void runLoreTask(concept.prompt).catch((e) => console.warn("[workshop] background task failed:", e));
     return { status: 202, json: { started: true } };
   },
 
