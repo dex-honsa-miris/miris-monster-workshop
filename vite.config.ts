@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { workshopApi } from "./server/api";
 
 export default defineConfig({
-  plugins: [react()], // Task 9 adds workshopApi() here
+  plugins: [react(), workshopApi()],
 });
