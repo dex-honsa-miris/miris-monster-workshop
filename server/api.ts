@@ -48,6 +48,11 @@ const routes: Record<string, Handler> = {
     }),
   }),
 
+  "GET /api/lore": async () => {
+    if (!existsSync(loreFile())) return { status: 404, json: { error: "no lore yet", hint: "Approve a concept first." } };
+    return { status: 200, json: parseLore(JSON.parse(await readFile(loreFile(), "utf8"))) };
+  },
+
   "POST /api/concept": async (body) => {
     const prompt = String(body.prompt ?? "");
     const { imageUrl } = await generateConcept(prompt, { key: env().FAL_KEY!, fetch });
