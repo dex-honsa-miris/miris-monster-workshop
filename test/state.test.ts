@@ -30,4 +30,15 @@ describe("state", () => {
     await writeFile(stateFile(), "{not json");
     expect(await readState()).toEqual(defaultState());
   });
+
+  it("serializes concurrent patches so both land", async () => {
+    const { readState, patchState } = await import("../server/state");
+    await Promise.all([
+      patchState({ model: { status: "running" } as never }),
+      patchState({ approvedConceptId: "c1" }),
+    ]);
+    const s = await readState();
+    expect(s.model.status).toBe("running");
+    expect(s.approvedConceptId).toBe("c1");
+  });
 });

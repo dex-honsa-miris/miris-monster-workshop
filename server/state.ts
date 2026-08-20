@@ -32,7 +32,7 @@ export async function readState(): Promise<WorkshopState> {
   }
 }
 
-export async function patchState(patch: Partial<WorkshopState>): Promise<WorkshopState> {
+async function doPatch(patch: Partial<WorkshopState>): Promise<WorkshopState> {
   const cur = await readState();
   const next: WorkshopState = {
     ...cur,
@@ -43,4 +43,16 @@ export async function patchState(patch: Partial<WorkshopState>): Promise<Worksho
   await mkdir(workshopDir(), { recursive: true });
   await writeFile(stateFile(), JSON.stringify(next, null, 2));
   return next;
+}
+
+// Serialize writes: readState() + writeFile() in doPatch() is a
+// read-modify-write that races when two callers patch concurrently (e.g.
+// the parallel model + lore background tasks kicked off by /api/approve).
+// Queueing patchState calls on a module-level promise chain ensures each
+// patch reads the state left by the previous one, rather than clobbering it.
+let writeChain: Promise<unknown> = Promise.resolve();
+export function patchState(patch: Partial<WorkshopState>): Promise<WorkshopState> {
+  const run = writeChain.then(() => doPatch(patch));
+  writeChain = run.catch(() => undefined);
+  return run;
 }

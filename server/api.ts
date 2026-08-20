@@ -73,7 +73,7 @@ const routes: Record<string, Handler> = {
       } catch (e) {
         await patchState({ model: { status: "failed", glbPath: null, error: String(e) } });
       }
-    })();
+    })().catch((e) => console.warn("[workshop] background task failed:", e));
     void (async () => {
       try {
         const lore = await generateLore(concept.prompt);
@@ -82,7 +82,7 @@ const routes: Record<string, Handler> = {
       } catch (e) {
         console.warn("[workshop] lore generation failed:", e);
       }
-    })();
+    })().catch((e) => console.warn("[workshop] background task failed:", e));
     return { status: 202, json: { started: true } };
   },
 
@@ -97,7 +97,8 @@ const routes: Record<string, Handler> = {
         const st = await assetStatus(r.assetId, deps).catch(() => "processing" as const);
         if (st !== "processing") { await patchState({ upload: { state: st } as never }); return; }
       }
-    })();
+      await patchState({ upload: { state: "failed", error: "Miris processing timed out after 10 minutes" } as never });
+    })().catch((e) => console.warn("[workshop] background task failed:", e));
     return { status: 200, json: r };
   },
 };
