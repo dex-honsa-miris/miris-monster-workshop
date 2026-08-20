@@ -15,7 +15,7 @@ export class SceneStage {
     this.camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 50);
     this.camera.position.set(0, 1.4, 4.2);
     this.camera.lookAt(0, 1.0, 0);
-    this.scene.add(new THREE.HemisphereLight(0xcdc4ff, 0x120e18, 0.7));
+    this.scene.add(new THREE.HemisphereLight(0xe6d9c2, 0x14100c, 0.7));
     const key = new THREE.SpotLight(0xffe2b8, 60, 12, 0.7, 0.5);
     key.position.set(2.5, 4.5, 2.5);
     this.scene.add(key);

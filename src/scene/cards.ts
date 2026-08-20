@@ -21,10 +21,24 @@ export function wrapText(text: string, maxChars: number): string[] {
   return lines;
 }
 
-const INK = "#e8e2d6";
-const PANEL = "#141018";
+const INK = "#ece2d0";
+const PANEL = "#18130e";
 const ACCENT = "#c9954a";
-const STATE_COLOR = { todo: "#5c5566", doing: ACCENT, done: "#7da06f", error: "#c96a4f" } as const;
+const ACCENT_BRIGHT = "#e8c284";
+const MUTED = "#a3947e";
+const STATE_COLOR = { todo: "#6f6353", doing: ACCENT, done: "#7da06f", error: "#c96a4f" } as const;
+const SERIF = '"Cormorant Garamond", Georgia, serif';
+const SANS = '"Instrument Sans", system-ui, sans-serif';
+
+/** Tracked uppercase, the brand's kicker register. Canvas letterSpacing is
+ * Chromium 99+; elsewhere the text just renders untracked, which is fine. */
+function kicker(ctx: CanvasRenderingContext2D, px: number): void {
+  ctx.font = `600 ${px}px ${SANS}`;
+  try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "3px"; } catch { /* untracked */ }
+}
+function resetTracking(ctx: CanvasRenderingContext2D): void {
+  try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px"; } catch { /* noop */ }
+}
 
 export class CanvasCard {
   readonly mesh: THREE.Mesh;
@@ -59,12 +73,19 @@ function panel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = PANEL;
   ctx.globalAlpha = 0.92;
   ctx.beginPath();
-  ctx.roundRect(0, 0, w, h, 18);
+  ctx.roundRect(1, 1, w - 2, h - 2, 18);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = ACCENT;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#3d3427";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
+  // Hairline brass rule at the top edge, the pedestal rim echoed.
+  const grad = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
+  grad.addColorStop(0, "rgba(201,149,74,0)");
+  grad.addColorStop(0.5, ACCENT);
+  grad.addColorStop(1, "rgba(201,149,74,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(w * 0.2, 1, w * 0.6, 1.5);
 }
 
 // --- checklist layout -------------------------------------------------------
@@ -112,31 +133,32 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
     for (const e of entries) {
       if (e.kind === "phase") {
         ctx.fillStyle = ACCENT;
-        ctx.font = "600 22px system-ui";
+        kicker(ctx, 15);
         ctx.fillText(e.title!.toUpperCase(), 28, e.y);
+        resetTracking(ctx);
         continue;
       }
       const item = e.item!;
       const hovered = hoverId !== null && item.id === hoverId;
       if (hovered) {
-        ctx.fillStyle = "#241d2c";
+        ctx.fillStyle = "#221b13";
         ctx.beginPath();
         ctx.roundRect(20, e.y - 20, w - 40, 28, 8);
         ctx.fill();
       }
-      ctx.font = "20px system-ui";
+      ctx.font = `20px $${SANS}`;
       ctx.fillStyle = STATE_COLOR[item.state];
       ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
-      ctx.fillStyle = hovered ? "#f4efe4" : item.state === "done" ? "#8f8798" : INK;
+      ctx.fillStyle = hovered ? ACCENT_BRIGHT : item.state === "done" ? MUTED : INK;
       ctx.fillText(item.label, 54, e.y);
       if (item.href) {
         // A quiet affordance: linked rows carry a small arrow, brighter on hover.
-        ctx.fillStyle = hovered ? ACCENT : "#5c5566";
+        ctx.fillStyle = hovered ? ACCENT : "#6f6353";
         ctx.fillText("→", w - 44, e.y);
       }
       if (e.detailLines!.length) {
         ctx.fillStyle = STATE_COLOR.error;
-        ctx.font = "15px system-ui";
+        ctx.font = `15px ${SANS}`;
         let dy = e.y + 19;
         for (const line of e.detailLines!) { ctx.fillText(line, 54, dy); dy += 19; }
       }
@@ -147,11 +169,11 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
 export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: string }): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
-    ctx.fillStyle = ACCENT;
-    ctx.font = "600 26px system-ui";
+    ctx.fillStyle = ACCENT_BRIGHT;
+    ctx.font = `600 27px ${SERIF}`;
     ctx.fillText(a.label, 24, 44);
     ctx.fillStyle = INK;
-    ctx.font = "19px system-ui";
+    ctx.font = `18px ${SANS}`;
     let y = 76;
     for (const line of wrapText(a.blurb, 34)) { ctx.fillText(line, 24, y); y += 24; }
   });
@@ -161,28 +183,29 @@ export function paintStats(card: CanvasCard, lore: MonsterLore): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
-    ctx.font = "600 30px Georgia, serif";
-    ctx.fillText(lore.name, 28, 52);
-    ctx.fillStyle = ACCENT;
-    ctx.font = "italic 20px Georgia, serif";
-    ctx.fillText(lore.epithet, 28, 80);
-    ctx.fillStyle = "#8f8798";
-    ctx.font = "16px system-ui";
-    ctx.fillText(`element · ${lore.element}`, 28, 106);
-    let y = 140;
-    ctx.font = "18px system-ui";
+    ctx.font = `600 34px ${SERIF}`;
+    ctx.fillText(lore.name, 28, 54);
+    ctx.fillStyle = ACCENT_BRIGHT;
+    ctx.font = `italic 21px ${SERIF}`;
+    ctx.fillText(lore.epithet, 28, 82);
+    ctx.fillStyle = MUTED;
+    kicker(ctx, 12);
+    ctx.fillText(`ELEMENT · ${lore.element.toUpperCase()}`, 28, 108);
+    resetTracking(ctx);
+    let y = 142;
+    ctx.font = `17px ${SANS}`;
     for (const [k, v] of Object.entries(lore.stats)) {
       ctx.fillStyle = INK;
       ctx.fillText(k, 28, y);
-      ctx.fillStyle = "#2a2433";
+      ctx.fillStyle = "#241d14";
       ctx.fillRect(130, y - 12, 200, 12);
       ctx.fillStyle = ACCENT;
       ctx.fillRect(130, y - 12, 20 * (v as number), 12);
       y += 28;
     }
-    ctx.fillStyle = INK;
-    ctx.font = "16px Georgia, serif";
-    y += 8;
+    ctx.fillStyle = MUTED;
+    ctx.font = `italic 17px ${SERIF}`;
+    y += 10;
     for (const line of wrapText(lore.lore, 46)) { ctx.fillText(line, 28, y); y += 21; }
   });
 }
@@ -192,12 +215,14 @@ export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap 
     panel(ctx, w, h);
     if (opts.imageBitmap) ctx.drawImage(opts.imageBitmap, 24, 24, w - 48, w - 48);
     ctx.fillStyle = INK;
-    ctx.font = "17px system-ui";
+    ctx.font = `italic 18px ${SERIF}`;
     let y = w;
     for (const line of wrapText(opts.prompt, 44)) { ctx.fillText(line, 24, y); y += 22; }
     if (opts.rerolls > 1) {
-      ctx.fillStyle = "#8f8798";
-      ctx.fillText(`take ${opts.rerolls}`, 24, h - 20);
+      ctx.fillStyle = MUTED;
+      kicker(ctx, 11);
+      ctx.fillText(`TAKE ${opts.rerolls}`, 24, h - 20);
+      resetTracking(ctx);
     }
   });
 }
@@ -205,11 +230,11 @@ export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap 
 export function paintMessage(card: CanvasCard, opts: { title: string; body: string }): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
-    ctx.fillStyle = ACCENT;
-    ctx.font = "600 24px system-ui";
+    ctx.fillStyle = ACCENT_BRIGHT;
+    ctx.font = `600 26px ${SERIF}`;
     ctx.fillText(opts.title, 24, 46);
     ctx.fillStyle = INK;
-    ctx.font = "18px system-ui";
+    ctx.font = `17px ${SANS}`;
     let y = 82;
     for (const line of wrapText(opts.body, 42)) { ctx.fillText(line, 24, y); y += 24; }
   });

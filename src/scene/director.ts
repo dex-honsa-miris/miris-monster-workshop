@@ -62,6 +62,11 @@ export class SceneDirector {
 
     paintChecklist(this.#checklist, []);
     this.#applyVisibility();
+    // Card text is painted into canvases, so the brand webfonts only show up
+    // on paints that happen AFTER the fonts load; repaint once they land.
+    document.fonts?.ready.then(() => {
+      if (!this.#disposed) paintChecklist(this.#checklist, this.#checklistPhases, this.#checklistHover);
+    }).catch(() => undefined);
 
     this.#stage.onFrame.push((dt, t) => {
       this.#ritual.update(dt, t);
