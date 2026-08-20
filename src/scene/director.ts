@@ -15,7 +15,7 @@ export interface ConceptView {
   rerolls: number;
 }
 
-const ACCENT = 0xc9954a;
+const LEADER = 0x82838a;
 const MESSAGE_BODY_MAX = 240;
 
 /**
@@ -62,11 +62,20 @@ export class SceneDirector {
 
     paintChecklist(this.#checklist, []);
     this.#applyVisibility();
-    // Card text is painted into canvases, so the brand webfonts only show up
-    // on paints that happen AFTER the fonts load; repaint once they land.
-    document.fonts?.ready.then(() => {
+    // Card text is painted into canvases, and canvas fillText does NOT
+    // trigger @font-face loads the way DOM text does -- request the faces the
+    // painters use explicitly, then repaint once they are really in.
+    void (async () => {
+      try {
+        await Promise.all([
+          document.fonts.load('400 20px "Geist"'),
+          document.fonts.load('600 22px "Geist"'),
+          document.fonts.load('italic 400 17px "Geist"'),
+          document.fonts.load('500 14px "Geist Mono"'),
+        ]);
+      } catch { /* fallback stacks are fine */ }
       if (!this.#disposed) paintChecklist(this.#checklist, this.#checklistPhases, this.#checklistHover);
-    }).catch(() => undefined);
+    })();
 
     this.#stage.onFrame.push((dt, t) => {
       this.#ritual.update(dt, t);
@@ -304,7 +313,7 @@ export class SceneDirector {
       const tip = cardLocal.clone().lerp(anchorLocal, 0.22); // stop short of the card face
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([anchorLocal, tip]),
-        new THREE.LineBasicMaterial({ color: ACCENT, transparent: true, opacity: 0.7 }),
+        new THREE.LineBasicMaterial({ color: LEADER, transparent: true, opacity: 0.6 }),
       );
       mount.add(card.mesh, line);
       this.#annotations.push({ card, line });

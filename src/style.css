@@ -1,20 +1,22 @@
-/* Miris brand system, carried over from the boutique: warm espresso ground,
-   cream ink, brass accent, Cormorant Garamond display over Instrument Sans.
-   The scene owns the storytelling; the DOM owns the masthead and the few
-   controls a canvas cannot do well (text entry, unambiguous buttons). */
+/* Miris brand system, from miris.com and the portal: cool near-black ground,
+   white ink, Geist for everything with Geist Mono eyebrows, sharp 4px
+   controls, and the vermilion accent spent only on live activity. The scene
+   owns the storytelling; the DOM owns the masthead and the few controls a
+   canvas cannot do well (text entry, unambiguous buttons). */
 
 :root {
-  --ground: #14100c;
-  --ground-deep: #060504;
-  --panel: rgba(24, 19, 14, 0.92);
-  --ink: #ece2d0;
-  --muted: #a3947e;
-  --brass: #c9954a;
-  --brass-bright: #e8c284;
-  --brass-soft: rgba(201, 149, 74, 0.16);
-  --line: #3d3427;
-  --serif: "Cormorant Garamond", Georgia, serif;
-  --sans: "Instrument Sans", system-ui, sans-serif;
+  --ground: #08090d;
+  --ground-lift: #131418;
+  --panel: rgba(17, 18, 21, 0.92);
+  --ink: #ffffff;
+  --muted: #9e9d9f;
+  --dim: #828386;
+  --line: #26272c;
+  --line-strong: #3a3b40;
+  --accent: #ff3500;
+  --accent-soft: rgba(255, 53, 0, 0.14);
+  --sans: "Geist", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 }
 
 html, body, #root {
@@ -22,16 +24,15 @@ html, body, #root {
   height: 100%;
   color: var(--ink);
   font-family: var(--sans);
-  background: radial-gradient(ellipse 75% 65% at 50% 38%, #1c1610 0%, var(--ground) 55%, var(--ground-deep) 100%);
+  background: radial-gradient(ellipse 75% 65% at 50% 38%, var(--ground-lift) 0%, var(--ground) 60%, #040508 100%);
   overflow: hidden;
 }
 
 #stage-mount { touch-action: none; cursor: grab; }
 #stage-mount:active { cursor: grabbing; }
 
-/* --- Masthead: the one orchestrated moment. Full-size while the attendee is
-   setting up and describing; compacts to the top edge once the summoning
-   starts so the monster owns the frame. --- */
+/* --- Masthead. Full-size while setting up and describing; compacts to the
+   top edge once the summoning starts so the monster owns the frame. --- */
 .masthead {
   position: absolute;
   top: 34px;
@@ -40,48 +41,36 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   pointer-events: none;
   transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s ease;
   transform-origin: top center;
 }
 .masthead .lockup {
-  width: 76px;
+  width: 68px;
   fill: var(--ink);
-  opacity: 0.92;
 }
 .masthead-title {
   margin: 0;
-  font: 500 clamp(30px, 5.5vw, 46px)/1.05 var(--serif);
-  letter-spacing: 0.01em;
+  font: 600 clamp(28px, 5vw, 42px)/1.05 var(--sans);
+  letter-spacing: -0.02em;
   color: var(--ink);
   text-align: center;
 }
 .masthead-kicker {
-  margin: 2px 0 0;
-  padding-top: 10px;
-  position: relative;
-  font: 600 11px/1 var(--sans);
-  letter-spacing: 0.34em;
-  text-indent: 0.34em; /* balances the tracking so the text centers true */
+  margin: 0;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
   text-transform: uppercase;
-  color: var(--brass);
+  color: var(--dim);
   text-align: center;
 }
-/* Hairline brass rule above the kicker, echoing the pedestal rim. */
-.masthead-kicker::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 54px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--brass), transparent);
-}
+/* The accent is for live activity: the kicker burns while summoning. */
+.masthead[data-busy] .masthead-kicker { color: var(--accent); }
 .masthead[data-compact] {
-  transform: translateY(-12px) scale(0.52);
-  opacity: 0.85;
+  transform: translateY(-10px) scale(0.55);
+  opacity: 0.9;
 }
 @media (prefers-reduced-motion: reduce) {
   .masthead { transition: none; }
@@ -104,41 +93,38 @@ html, body, #root {
 
 .overlay .prompt {
   width: min(440px, 78vw);
-  padding: 13px 20px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
   background: var(--panel);
   color: var(--ink);
-  font: 16px/1.3 var(--sans);
-  transition: border-color 0.2s ease;
+  font: 15px/1.4 var(--sans);
+  transition: border-color 0.15s ease;
 }
-.overlay .prompt::placeholder { color: #6f6353; font-style: italic; font-family: var(--serif); font-size: 17px; }
-.overlay .prompt:focus { outline: none; border-color: var(--brass); }
-.overlay .prompt:focus-visible { box-shadow: 0 0 0 3px var(--brass-soft); }
+.overlay .prompt::placeholder { color: var(--dim); font-style: italic; }
+.overlay .prompt:focus { outline: none; border-color: var(--muted); }
+.overlay .prompt:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08); }
 
 .overlay .btn {
-  padding: 13px 26px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
+  padding: 12px 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: rgba(17, 18, 21, 0.8);
   color: var(--ink);
-  font: 600 12px/1 var(--sans);
-  letter-spacing: 0.18em;
-  text-indent: 0.18em;
-  text-transform: uppercase;
+  font: 500 14px/1 var(--sans);
   cursor: pointer;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.overlay .btn:hover:not(:disabled) { border-color: var(--brass); color: var(--brass-bright); }
-.overlay .btn:focus-visible { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-soft); }
-.overlay .btn.primary { border-color: var(--brass); color: var(--brass-bright); }
-.overlay .btn.primary:hover:not(:disabled) { background: var(--brass-soft); }
+.overlay .btn:hover:not(:disabled) { border-color: var(--muted); }
+.overlay .btn:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1); }
+.overlay .btn.primary { background: var(--ink); border-color: var(--ink); color: #111215; font-weight: 600; }
+.overlay .btn.primary:hover:not(:disabled) { background: #e4e5e9; border-color: #e4e5e9; }
 .overlay .btn:disabled { opacity: 0.4; cursor: default; }
 
 .overlay .hint {
   margin: 0;
-  color: var(--muted);
-  font: 15px/1.5 var(--sans);
+  color: var(--dim);
+  font: 14px/1.5 var(--sans);
   text-align: center;
   max-width: 62ch;
 }
@@ -150,30 +136,29 @@ html, body, #root {
   justify-content: center;
   gap: 8px;
   max-width: 640px;
-  padding: 14px 22px;
-  border: 1px solid var(--brass);
-  border-radius: 16px;
+  padding: 14px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
   background: var(--panel);
-  color: var(--ink);
-  font: 15px var(--sans);
+  color: var(--muted);
+  font: 14px var(--sans);
   text-align: center;
 }
 .overlay .banner-label {
-  color: var(--brass);
+  color: var(--accent);
   text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.2em;
 }
 .overlay .banner code {
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: var(--brass-soft);
-  color: var(--brass-bright);
-  font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #1a1b1f;
+  color: var(--ink);
+  font: 13px var(--mono);
 }
 
 @media (max-width: 560px) {
   .masthead { top: 20px; }
-  .masthead .lockup { width: 58px; }
+  .masthead .lockup { width: 52px; }
 }

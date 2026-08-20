@@ -19,12 +19,12 @@ export class Pedestal {
   constructor() {
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.9, 1.0, 0.5, 48),
-      new THREE.MeshStandardMaterial({ color: 0x1c1722, roughness: 0.6, metalness: 0.4 }),
+      new THREE.MeshStandardMaterial({ color: 0x111215, roughness: 0.55, metalness: 0.5 }),
     );
     body.position.y = 0.25;
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(0.9, 0.015, 12, 64),
-      new THREE.MeshBasicMaterial({ color: 0xc9954a }),
+      new THREE.MeshBasicMaterial({ color: 0xe8e9ed }),
     );
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 0.5;

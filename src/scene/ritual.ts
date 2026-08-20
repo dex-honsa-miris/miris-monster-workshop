@@ -17,7 +17,7 @@ export class RitualCircle {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    this.#material = new THREE.PointsMaterial({ color: 0xc9954a, size: 0.02, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    this.#material = new THREE.PointsMaterial({ color: 0xff3500, size: 0.02, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
     this.#points = new THREE.Points(geo, this.#material);
     this.group.add(this.#points);
   }

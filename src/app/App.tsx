@@ -147,7 +147,11 @@ export function App(): JSX.Element {
       onPointerCancel={() => endDrag()}
       onLostPointerCapture={endDrag}
     >
-      <header className="masthead" data-compact={phase === "summoning" || phase === "reveal" ? "true" : undefined}>
+      <header
+        className="masthead"
+        data-compact={phase === "summoning" || phase === "reveal" ? "true" : undefined}
+        data-busy={phase === "summoning" ? "true" : undefined}
+      >
         <svg className="lockup" viewBox="0 0 976 272" role="img" aria-label="Miris">
           <path d="M920 152h-32c-8.82 0-16-7.18-16-16s7.18-16 16-16h72V88h-72c-26.47 0-48 21.53-48 48s21.53 48 48 48h32c8.82 0 16 7.18 16 16s-7.18 16-16 16h-80v32h80c26.47 0 48-21.53 48-48s-21.53-48-48-48M784 88h32v160h-32zm-168 0h32v160h-32zM479.1 200h-14.2L392 24h-32v224h32V120h5.5l53.01 128h42.98l53.01-128h5.5v128h32V24h-32zM616 24h32v32h-32zm168 0h32v32h-32zm-64.12 68.94L712 112l-9.94-24H680v160h32V136c0-8.84 7.16-16 16-16h36V88h-36.72c-3.24 0-6.16 1.96-7.4 4.94M114.51 264h42.98L184 200H88zm44.35-176L192 8H80l33.14 80zM184 200h80V72h-26.98zM8 72v128h80L34.98 72z" />
         </svg>

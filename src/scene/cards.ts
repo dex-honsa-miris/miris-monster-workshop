@@ -21,19 +21,23 @@ export function wrapText(text: string, maxChars: number): string[] {
   return lines;
 }
 
-const INK = "#ece2d0";
-const PANEL = "#18130e";
-const ACCENT = "#c9954a";
-const ACCENT_BRIGHT = "#e8c284";
-const MUTED = "#a3947e";
-const STATE_COLOR = { todo: "#6f6353", doing: ACCENT, done: "#7da06f", error: "#c96a4f" } as const;
-const SERIF = '"Cormorant Garamond", Georgia, serif';
-const SANS = '"Instrument Sans", system-ui, sans-serif';
+// Miris brand (miris.com): cool near-black, white ink, Geist + Geist Mono,
+// vermilion #ff3500 spent only on live activity and attention.
+const INK = "#ffffff";
+const PANEL = "#111215";
+const ACCENT = "#ff3500";
+const MUTED = "#9e9d9f";
+const DIM = "#55565b";
+const LINE = "#26272c";
+const STATE_COLOR = { todo: DIM, doing: ACCENT, done: "#6da583", error: ACCENT } as const;
+const SANS = '"Geist", system-ui, sans-serif';
+const MONO = '"Geist Mono", ui-monospace, Menlo, monospace';
 
-/** Tracked uppercase, the brand's kicker register. Canvas letterSpacing is
- * Chromium 99+; elsewhere the text just renders untracked, which is fine. */
+/** Tracked uppercase mono, the brand's eyebrow register (miris.com section
+ * labels). Canvas letterSpacing is Chromium 99+; elsewhere it renders
+ * untracked, which is fine. */
 function kicker(ctx: CanvasRenderingContext2D, px: number): void {
-  ctx.font = `600 ${px}px ${SANS}`;
+  ctx.font = `500 ${px}px ${MONO}`;
   try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "3px"; } catch { /* untracked */ }
 }
 function resetTracking(ctx: CanvasRenderingContext2D): void {
@@ -73,19 +77,12 @@ function panel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = PANEL;
   ctx.globalAlpha = 0.92;
   ctx.beginPath();
-  ctx.roundRect(1, 1, w - 2, h - 2, 18);
+  ctx.roundRect(1, 1, w - 2, h - 2, 12);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = "#3d3427";
+  ctx.strokeStyle = LINE;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Hairline brass rule at the top edge, the pedestal rim echoed.
-  const grad = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
-  grad.addColorStop(0, "rgba(201,149,74,0)");
-  grad.addColorStop(0.5, ACCENT);
-  grad.addColorStop(1, "rgba(201,149,74,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(w * 0.2, 1, w * 0.6, 1.5);
 }
 
 // --- checklist layout -------------------------------------------------------
@@ -132,8 +129,8 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
     panel(ctx, w, h);
     for (const e of entries) {
       if (e.kind === "phase") {
-        ctx.fillStyle = ACCENT;
-        kicker(ctx, 15);
+        ctx.fillStyle = MUTED;
+        kicker(ctx, 14);
         ctx.fillText(e.title!.toUpperCase(), 28, e.y);
         resetTracking(ctx);
         continue;
@@ -141,7 +138,7 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
       const item = e.item!;
       const hovered = hoverId !== null && item.id === hoverId;
       if (hovered) {
-        ctx.fillStyle = "#221b13";
+        ctx.fillStyle = "#1a1b1f";
         ctx.beginPath();
         ctx.roundRect(20, e.y - 20, w - 40, 28, 8);
         ctx.fill();
@@ -149,11 +146,11 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
       ctx.font = `20px $${SANS}`;
       ctx.fillStyle = STATE_COLOR[item.state];
       ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
-      ctx.fillStyle = hovered ? ACCENT_BRIGHT : item.state === "done" ? MUTED : INK;
+      ctx.fillStyle = hovered ? INK : item.state === "done" ? "#828386" : INK;
       ctx.fillText(item.label, 54, e.y);
       if (item.href) {
         // A quiet affordance: linked rows carry a small arrow, brighter on hover.
-        ctx.fillStyle = hovered ? ACCENT : "#6f6353";
+        ctx.fillStyle = hovered ? ACCENT : DIM;
         ctx.fillText("→", w - 44, e.y);
       }
       if (e.detailLines!.length) {
@@ -169,11 +166,11 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
 export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: string }): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
-    ctx.fillStyle = ACCENT_BRIGHT;
-    ctx.font = `600 27px ${SERIF}`;
-    ctx.fillText(a.label, 24, 44);
     ctx.fillStyle = INK;
-    ctx.font = `18px ${SANS}`;
+    ctx.font = `600 22px ${SANS}`;
+    ctx.fillText(a.label, 24, 42);
+    ctx.fillStyle = MUTED;
+    ctx.font = `17px ${SANS}`;
     let y = 76;
     for (const line of wrapText(a.blurb, 34)) { ctx.fillText(line, 24, y); y += 24; }
   });
@@ -183,28 +180,28 @@ export function paintStats(card: CanvasCard, lore: MonsterLore): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
-    ctx.font = `600 34px ${SERIF}`;
+    ctx.font = `600 32px ${SANS}`;
     ctx.fillText(lore.name, 28, 54);
-    ctx.fillStyle = ACCENT_BRIGHT;
-    ctx.font = `italic 21px ${SERIF}`;
-    ctx.fillText(lore.epithet, 28, 82);
     ctx.fillStyle = MUTED;
+    ctx.font = `italic 400 19px ${SANS}`;
+    ctx.fillText(lore.epithet, 28, 82);
+    ctx.fillStyle = ACCENT;
     kicker(ctx, 12);
-    ctx.fillText(`ELEMENT · ${lore.element.toUpperCase()}`, 28, 108);
+    ctx.fillText(`ELEMENT / ${lore.element.toUpperCase()}`, 28, 110);
     resetTracking(ctx);
-    let y = 142;
-    ctx.font = `17px ${SANS}`;
+    let y = 144;
+    ctx.font = `16px ${SANS}`;
     for (const [k, v] of Object.entries(lore.stats)) {
-      ctx.fillStyle = INK;
+      ctx.fillStyle = MUTED;
       ctx.fillText(k, 28, y);
-      ctx.fillStyle = "#241d14";
-      ctx.fillRect(130, y - 12, 200, 12);
-      ctx.fillStyle = ACCENT;
-      ctx.fillRect(130, y - 12, 20 * (v as number), 12);
+      ctx.fillStyle = "#1a1b1f";
+      ctx.fillRect(130, y - 11, 200, 10);
+      ctx.fillStyle = INK;
+      ctx.fillRect(130, y - 11, 20 * (v as number), 10);
       y += 28;
     }
     ctx.fillStyle = MUTED;
-    ctx.font = `italic 17px ${SERIF}`;
+    ctx.font = `400 16px ${SANS}`;
     y += 10;
     for (const line of wrapText(lore.lore, 46)) { ctx.fillText(line, 28, y); y += 21; }
   });
@@ -214,8 +211,8 @@ export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap 
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     if (opts.imageBitmap) ctx.drawImage(opts.imageBitmap, 24, 24, w - 48, w - 48);
-    ctx.fillStyle = INK;
-    ctx.font = `italic 18px ${SERIF}`;
+    ctx.fillStyle = MUTED;
+    ctx.font = `italic 400 17px ${SANS}`;
     let y = w;
     for (const line of wrapText(opts.prompt, 44)) { ctx.fillText(line, 24, y); y += 22; }
     if (opts.rerolls > 1) {
@@ -230,11 +227,11 @@ export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap 
 export function paintMessage(card: CanvasCard, opts: { title: string; body: string }): void {
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
-    ctx.fillStyle = ACCENT_BRIGHT;
-    ctx.font = `600 26px ${SERIF}`;
-    ctx.fillText(opts.title, 24, 46);
     ctx.fillStyle = INK;
-    ctx.font = `17px ${SANS}`;
+    ctx.font = `600 22px ${SANS}`;
+    ctx.fillText(opts.title, 24, 44);
+    ctx.fillStyle = MUTED;
+    ctx.font = `16px ${SANS}`;
     let y = 82;
     for (const line of wrapText(opts.body, 42)) { ctx.fillText(line, 24, y); y += 24; }
   });
