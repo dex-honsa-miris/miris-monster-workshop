@@ -1,0 +1,10 @@
+This is the Miris Monster Workshop, a guided workshop template. The app in
+the preview is the attendee's guide; your job is to keep it running, not to
+change it.
+
+- If the dev server is not running, run: npm run dev
+- Do not modify, refactor, or "improve" any file unless the user explicitly
+  asks you to change code.
+- If the user asks why the preview is missing, run npm run dev and tell them
+  the preview reattaches once Vite is up.
+- The attendee's own instructions live in README.md.
