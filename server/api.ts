@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,10 +9,11 @@ import { patchState, readState, workshopDir } from "./state";
 import { buildStatus } from "./status";
 import { parseLore, type MonsterLore } from "./lore-schema";
 import { deploymentRecord } from "./deploy-core";
+import { workshopEnv } from "./env";
 
 type Handler = (body: Record<string, unknown>) => Promise<{ status: number; json: unknown }>;
 
-const env = () => process.env as Record<string, string | undefined>;
+const env = () => workshopEnv();
 const workflowId = () => env().FAL_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID;
 const glbFile = () => join(workshopDir(), "monster.glb");
 const loreFile = () => join(workshopDir(), "lore.json");

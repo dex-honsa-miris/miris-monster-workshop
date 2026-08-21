@@ -26,8 +26,8 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
       items: [
         {
           id: "stackblitz",
-          label: "Sign into StackBlitz, then fork",
-          // Running inside a WebContainer is detectable; being signed in is
+          label: "Sign into bolt.new, then fork",
+          // Running inside a WebContainer (bolt.new preview) is detectable; being signed in is
           // not, so the label itself stays the reminder.
           state: env.inStackBlitz || keysDone ? "done" : "todo",
           detail: "Forks made signed out lose your .env",
