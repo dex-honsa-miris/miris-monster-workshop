@@ -44,26 +44,39 @@ function resetTracking(ctx: CanvasRenderingContext2D): void {
   try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px"; } catch { /* noop */ }
 }
 
+/** Card canvases render at 2x their logical resolution: at typical card
+ * distance a 512-logical card covers 1000+ device pixels on a DPR-2 screen,
+ * and a 1:1 texture reads visibly soft. Painters and hit-testing stay in
+ * LOGICAL pixels; the context transform hides the supersample. */
+const SUPERSAMPLE = 2;
+
 export class CanvasCard {
   readonly mesh: THREE.Mesh;
   readonly texture: THREE.CanvasTexture;
   readonly #canvas: HTMLCanvasElement;
+  readonly #logicalW: number;
+  readonly #logicalH: number;
   constructor(worldW: number, worldH: number, px = 512) {
+    this.#logicalW = px;
+    this.#logicalH = Math.round((px * worldH) / worldW);
     this.#canvas = document.createElement("canvas");
-    this.#canvas.width = px;
-    this.#canvas.height = Math.round((px * worldH) / worldW);
+    this.#canvas.width = this.#logicalW * SUPERSAMPLE;
+    this.#canvas.height = this.#logicalH * SUPERSAMPLE;
     this.texture = new THREE.CanvasTexture(this.#canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.anisotropy = 4;
     const mat = new THREE.MeshBasicMaterial({ map: this.texture, transparent: true });
     mat.toneMapped = false;
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH), mat);
   }
-  get pxWidth(): number { return this.#canvas.width; }
-  get pxHeight(): number { return this.#canvas.height; }
+  /** LOGICAL pixel size: what painters and hit-tests reason in. */
+  get pxWidth(): number { return this.#logicalW; }
+  get pxHeight(): number { return this.#logicalH; }
   paint(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): void {
     const ctx = this.#canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
-    draw(ctx, this.#canvas.width, this.#canvas.height);
+    ctx.setTransform(SUPERSAMPLE, 0, 0, SUPERSAMPLE, 0, 0);
+    ctx.clearRect(0, 0, this.#logicalW, this.#logicalH);
+    draw(ctx, this.#logicalW, this.#logicalH);
     this.texture.needsUpdate = true;
   }
   dispose(): void {
@@ -143,7 +156,7 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
         ctx.roundRect(20, e.y - 20, w - 40, 28, 8);
         ctx.fill();
       }
-      ctx.font = `20px $${SANS}`;
+      ctx.font = `20px ${SANS}`;
       ctx.fillStyle = STATE_COLOR[item.state];
       ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
       ctx.fillStyle = hovered ? INK : item.state === "done" ? "#828386" : INK;
