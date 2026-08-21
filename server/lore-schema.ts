@@ -12,6 +12,10 @@ export const loreSchema = z.object({
   lore: z.string().min(1).max(420),
   element: z.enum(MONSTER_ELEMENTS as unknown as [string, ...string[]]),
   stats: z.object({ might: stat, agility: stat, arcana: stat, mischief: stat, resolve: stat }),
+  abilities: z
+    .array(z.object({ name: z.string().min(1).max(30), blurb: z.string().min(1).max(90) }))
+    .min(2)
+    .max(3),
   annotations: z
     .array(z.object({ slot: z.enum(ANNOTATION_SLOTS), label: z.string().min(1).max(30), blurb: z.string().min(1).max(90) }))
     .min(3)

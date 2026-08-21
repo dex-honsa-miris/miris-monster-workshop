@@ -85,7 +85,7 @@ export function annotationMarkup(a: { label: string; blurb: string }): string {
   );
 }
 
-export function statsMarkup(lore: MonsterLore): string {
+export function statsMarkup(lore: MonsterLore, iconUrl: string | null = null): string {
   const bars = Object.entries(lore.stats)
     .map(
       ([k, v]) =>
@@ -97,13 +97,24 @@ export function statsMarkup(lore: MonsterLore): string {
         `</div>`,
     )
     .join("");
+  const abilities = lore.abilities
+    .map(
+      (a) =>
+        `<div style="margin-top:8px"><span style="font:600 15px 'Geist',system-ui,sans-serif;color:#ffffff">${esc(a.name)}</span>` +
+        `<span style="font:14px 'Geist',system-ui,sans-serif;color:#9e9d9f"> · ${esc(a.blurb)}</span></div>`,
+    )
+    .join("");
+  const icon = iconUrl
+    ? `<img src="${esc(iconUrl)}" style="position:absolute;top:22px;right:24px;width:64px;height:64px;border-radius:8px;border:1px solid #26272c" />`
+    : "";
   return shell(
-    `<div style="padding:24px 28px">` +
+    `<div style="padding:24px 28px">${icon}` +
       `<div style="font:600 32px 'Geist',system-ui,sans-serif">${esc(lore.name)}</div>` +
       `<div style="font:italic 400 19px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:4px">${esc(lore.epithet)}</div>` +
       `<div class="eyebrow" style="font-size:12px;color:#ff3500;margin-top:16px">ELEMENT / ${esc(lore.element.toUpperCase())}</div>` +
       `<div style="margin-top:10px">${bars}</div>` +
-      `<div style="font:400 16px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:18px;line-height:1.4">${esc(lore.lore)}</div>` +
+      `<div class="eyebrow" style="font-size:11px;margin-top:16px">ABILITIES</div>${abilities}` +
+      `<div style="font:400 15px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:14px;line-height:1.4">${esc(lore.lore)}</div>` +
     `</div>`,
   );
 }

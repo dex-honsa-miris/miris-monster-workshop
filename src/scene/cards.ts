@@ -269,8 +269,8 @@ export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: str
   });
 }
 
-export function paintStats(card: CanvasCard, lore: MonsterLore): void {
-  if (htmlInCanvasSupported) { card.paintHtml(statsMarkup(lore)); return; }
+export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitmap | null = null, iconUrl: string | null = null): void {
+  if (htmlInCanvasSupported) { card.paintHtml(statsMarkup(lore, iconUrl)); return; }
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
@@ -283,6 +283,11 @@ export function paintStats(card: CanvasCard, lore: MonsterLore): void {
     kicker(ctx, 12);
     ctx.fillText(`ELEMENT / ${lore.element.toUpperCase()}`, 28, 110);
     resetTracking(ctx);
+    if (icon) {
+      ctx.drawImage(icon, w - 96, 24, 72, 72);
+      ctx.strokeStyle = LINE;
+      ctx.strokeRect(w - 96, 24, 72, 72);
+    }
     let y = 144;
     ctx.font = `16px ${SANS}`;
     for (const [k, v] of Object.entries(lore.stats)) {
@@ -294,9 +299,25 @@ export function paintStats(card: CanvasCard, lore: MonsterLore): void {
       ctx.fillRect(130, y - 11, 20 * (v as number), 10);
       y += 28;
     }
+    ctx.fillStyle = ACCENT;
+    kicker(ctx, 11);
+    y += 6;
+    ctx.fillText("ABILITIES", 28, y);
+    resetTracking(ctx);
+    y += 24;
+    for (const a of lore.abilities) {
+      ctx.fillStyle = INK;
+      ctx.font = `600 15px ${SANS}`;
+      ctx.fillText(a.name, 28, y);
+      const nameW = ctx.measureText(a.name).width;
+      ctx.fillStyle = MUTED;
+      ctx.font = `14px ${SANS}`;
+      ctx.fillText(` · ${a.blurb}`, 28 + nameW, y);
+      y += 21;
+    }
     ctx.fillStyle = MUTED;
-    ctx.font = `400 16px ${SANS}`;
-    y += 10;
+    ctx.font = `400 15px ${SANS}`;
+    y += 8;
     for (const line of wrapText(lore.lore, 46)) { ctx.fillText(line, 28, y); y += 21; }
   });
 }

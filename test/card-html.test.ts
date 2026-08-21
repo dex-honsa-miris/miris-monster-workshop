@@ -20,6 +20,10 @@ const LORE: MonsterLore = {
   lore: "Grown from a forgotten shrine.",
   element: "bloom",
   stats: { might: 6, agility: 3, arcana: 8, mischief: 5, resolve: 7 },
+  abilities: [
+    { name: "Zap Tickle", blurb: "A playful jolt that leaves you giggling" },
+    { name: "Cloud Dash", blurb: "Swiftly moves within its misty form" },
+  ],
   annotations: [
     { slot: "crown", label: "Moss Crest", blurb: "Blooms when happy" },
     { slot: "face", label: "Lantern Eyes", blurb: "Store fireflies" },

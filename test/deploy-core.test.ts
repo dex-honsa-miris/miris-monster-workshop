@@ -13,7 +13,7 @@ describe("resolveAssetId", () => {
 
 describe("viewerConfig / deploymentRecord", () => {
   it("produces parseable JSON with the contract fields", () => {
-    const lore = { name: "N", epithet: "e", lore: "l", element: "bloom", stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 }, annotations: [{ slot: "crown", label: "a", blurb: "b" }, { slot: "face", label: "c", blurb: "d" }, { slot: "base", label: "e", blurb: "f" }] };
+    const lore = { name: "N", epithet: "e", lore: "l", element: "bloom", stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 }, abilities: [{ name: "a", blurb: "b" }, { name: "c", blurb: "d" }], annotations: [{ slot: "crown", label: "a", blurb: "b" }, { slot: "face", label: "c", blurb: "d" }, { slot: "base", label: "e", blurb: "f" }] };
     const cfg = JSON.parse(viewerConfig("a-1", lore as never)) as { assetId: string };
     expect(cfg.assetId).toBe("a-1");
     const rec = JSON.parse(deploymentRecord("https://x.vercel.app")) as { url: string; deployedAt: string };
@@ -22,7 +22,7 @@ describe("viewerConfig / deploymentRecord", () => {
   });
 
   it("includes viewerKey when passed, and omits it when not", () => {
-    const lore = { name: "N", epithet: "e", lore: "l", element: "bloom", stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 }, annotations: [{ slot: "crown", label: "a", blurb: "b" }, { slot: "face", label: "c", blurb: "d" }, { slot: "base", label: "e", blurb: "f" }] };
+    const lore = { name: "N", epithet: "e", lore: "l", element: "bloom", stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 }, abilities: [{ name: "a", blurb: "b" }, { name: "c", blurb: "d" }], annotations: [{ slot: "crown", label: "a", blurb: "b" }, { slot: "face", label: "c", blurb: "d" }, { slot: "base", label: "e", blurb: "f" }] };
     const withKey = JSON.parse(viewerConfig("a-1", lore as never, "vk-123")) as { viewerKey?: string };
     expect(withKey.viewerKey).toBe("vk-123");
     const withoutKey = JSON.parse(viewerConfig("a-1", lore as never)) as { viewerKey?: string };

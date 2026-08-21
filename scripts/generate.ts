@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DEFAULT_WORKFLOW_ID, generateModel, runMonsterWorkflow } from "../server/fal";
+import { manifestMonster, sketchMonster } from "../server/fal";
 import { workshopDir } from "../server/state";
 
 const prompt = process.argv.slice(2).join(" ").trim();
@@ -9,13 +9,13 @@ if (!prompt) { console.error('usage: npm run generate -- "a moss golem with lant
 
 const main = async () => {
   const deps = { key: process.env.FAL_KEY!, fetch };
-  const workflowId = process.env.FAL_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID;
-  console.log(`1/3 running the workshop workflow (${workflowId})…`);
-  const { imageUrl, lore } = await runMonsterWorkflow(prompt, deps, workflowId);
+  console.log("1/3 sketching the concept…");
+  const { imageUrl } = await sketchMonster(prompt, deps, process.env.FAL_SKETCH_WORKFLOW || undefined);
   console.log("   ", imageUrl);
-  if (!lore) console.warn("    the workflow returned no valid lore document; the app can retry later");
-  console.log("2/3 3D model (this takes a minute or two)…");
-  const { glb } = await generateModel(imageUrl, deps, (p) => process.stdout.write(`\r    ${p.status}        `));
+  console.log("2/3 manifesting: 3D model + lore + icon (a minute or two)…");
+  const { glb, lore, iconPng } = await manifestMonster(prompt, imageUrl, deps, process.env.FAL_MANIFEST_WORKFLOW || undefined, (p) => process.stdout.write(`\r    ${p.status}        `));
+  if (!lore) console.warn("\n    lore did not validate; the app can retry it later");
+  if (iconPng) await (await import("node:fs/promises")).writeFile(join(process.cwd(), "public", "generated", "icon.png"), Buffer.from(iconPng));
   await mkdir(workshopDir(), { recursive: true });
   await writeFile(join(workshopDir(), "monster.glb"), Buffer.from(glb));
   await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });

@@ -298,6 +298,18 @@ export class SceneDirector {
 
     paintStats(this.#stats, lore);
     this.#hasStats = true;
+    // The emblem icon is optional and arrives with the manifest stage; fetch
+    // it lazily and repaint the stats card when it lands (404 = no icon).
+    void (async () => {
+      try {
+        const res = await fetch("/generated/icon.png");
+        if (!res.ok) return;
+        if (htmlInCanvasSupported) { paintStats(this.#stats, lore, null, "/generated/icon.png"); return; }
+        const bitmap = await createImageBitmap(await res.blob());
+        if (this.#appliedLore === lore && !this.#disposed) paintStats(this.#stats, lore, bitmap);
+        bitmap.close();
+      } catch { /* icon is decoration */ }
+    })();
 
     const mount = this.#pedestal.mount;
     const box = new THREE.Box3().setFromObject(monster);

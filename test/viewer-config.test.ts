@@ -3,7 +3,7 @@ import { loadConfig } from "../viewer/config";
 
 const LORE = {
   name: "Gloamroot", epithet: "the Lantern-Eyed", lore: "x", element: "bloom",
-  stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 },
+  stats: { might: 1, agility: 1, arcana: 1, mischief: 1, resolve: 1 }, abilities: [{ name: "a", blurb: "b" }, { name: "c", blurb: "d" }],
   annotations: [
     { slot: "crown", label: "a", blurb: "b" },
     { slot: "face", label: "c", blurb: "d" },

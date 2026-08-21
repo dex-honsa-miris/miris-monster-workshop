@@ -32,8 +32,9 @@ describe("buildConceptPrompt", () => {
   it("embeds the sanitized user text inside the art bible, never raw", () => {
     const { prompt, negativePrompt } = buildConceptPrompt("a moss golem with lantern eyes");
     expect(prompt).toContain("a moss golem with lantern eyes");
-    expect(prompt).toContain("single full-body creature");
-    expect(prompt.toLowerCase()).toContain("dark backdrop");
+    expect(prompt.toLowerCase()).toContain("single full-body creature");
+    expect(prompt.toLowerCase()).toContain("matte");
+    expect(prompt.toLowerCase()).toContain("monster-taming video game");
     expect(negativePrompt.length).toBeGreaterThan(10);
   });
   it("exposes the element set for the lore schema", () => {

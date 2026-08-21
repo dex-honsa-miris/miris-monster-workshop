@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
-import { DEFAULT_WORKFLOW_ID, generateModel, runMonsterWorkflow } from "./fal";
+import { generateLoreLLM, manifestMonster, sketchMonster } from "./fal";
 import { probeFal } from "./probes";
 import { patchState, readState, workshopDir } from "./state";
 import { buildStatus } from "./status";
@@ -14,7 +14,8 @@ import { workshopEnv } from "./env";
 type Handler = (body: Record<string, unknown>) => Promise<{ status: number; json: unknown }>;
 
 const env = () => workshopEnv();
-const workflowId = () => env().FAL_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID;
+const sketchWorkflow = () => env().FAL_SKETCH_WORKFLOW || undefined;
+const manifestWorkflow = () => env().FAL_MANIFEST_WORKFLOW || undefined;
 const glbFile = () => join(workshopDir(), "monster.glb");
 const loreFile = () => join(workshopDir(), "lore.json");
 const deployFile = () => join(workshopDir(), "deployment.json");
@@ -62,15 +63,15 @@ const routes: Record<string, Handler> = {
     return { status: 200, json: parseLore(JSON.parse(await readFile(loreFile(), "utf8"))) };
   },
 
-  // One workflow run: pre-prompt, concept image, and the lore document all
-  // come back together from the public Miris workflow on fal.
+  // Stage 1 SKETCH: the styled concept image (workflow when configured,
+  // direct flux/schnell with the guardrails template otherwise). Cheap per
+  // reroll; lore waits for the manifest stage.
   "POST /api/concept": async (body) => {
     const prompt = String(body.prompt ?? "");
-    const { imageUrl, lore } = await runMonsterWorkflow(prompt, { key: env().FAL_KEY!, fetch }, workflowId());
+    const { imageUrl } = await sketchMonster(prompt, { key: env().FAL_KEY!, fetch }, sketchWorkflow());
     const concept = { id: `c${Date.now()}`, prompt, imageUrl, createdAt: new Date().toISOString() };
     const s = await readState();
     await patchState({ concepts: [...s.concepts, concept] });
-    await recordLore(lore);
     return { status: 200, json: concept };
   },
 
@@ -81,37 +82,47 @@ const routes: Record<string, Handler> = {
     }
     const concept = s.concepts.find((c) => c.id === body.conceptId);
     if (!concept) return { status: 404, json: { error: "unknown concept", hint: "Generate a concept first." } };
-    await patchState({ approvedConceptId: concept.id, model: { status: "running", glbPath: null, error: null } });
+    await patchState({
+      approvedConceptId: concept.id,
+      model: { status: "running", glbPath: null, error: null },
+      loreStatus: { status: "running", error: null },
+    });
+    // Stage 2 MANIFEST: 3D model + lore + emblem icon in one go (workflow
+    // when configured, three direct legs otherwise).
     void (async () => {
       try {
-        const { glb } = await generateModel(concept.imageUrl, { key: env().FAL_KEY!, fetch });
+        const m = await manifestMonster(concept.prompt, concept.imageUrl, { key: env().FAL_KEY!, fetch }, manifestWorkflow());
         await mkdir(workshopDir(), { recursive: true });
-        await writeFile(glbFile(), Buffer.from(glb));
         await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
+        await writeFile(glbFile(), Buffer.from(m.glb));
         await copyFile(glbFile(), join(process.cwd(), "public", "generated", "monster.glb"));
+        if (m.iconPng) await writeFile(join(process.cwd(), "public", "generated", "icon.png"), Buffer.from(m.iconPng));
+        await recordLore(m.lore);
         await patchState({ model: { status: "done", glbPath: glbFile(), error: null } });
       } catch (e) {
-        await patchState({ model: { status: "failed", glbPath: null, error: String(e) } });
+        await patchState({
+          model: { status: "failed", glbPath: null, error: String(e) },
+          loreStatus: { status: "failed", error: String(e) },
+        });
       }
     })().catch((e) => console.warn("[workshop] background task failed:", e));
     return { status: 202, json: { started: true } };
   },
 
-  // Retry re-runs the whole workflow for its lore half (rare path: only after
-  // a run whose lore failed validation). The concept image is NOT replaced.
+  // Retry re-runs ONLY the lore leg (direct LLM call, cheap) -- never the
+  // expensive 3D stage.
   "POST /api/lore/retry": async () => {
     const s = await readState();
     const concept = s.approvedConceptId
       ? s.concepts.find((c) => c.id === s.approvedConceptId)
       : s.concepts[s.concepts.length - 1];
     if (s.loreStatus.status !== "failed" || !concept) {
-      return { status: 409, json: { error: "no failed lore to retry", hint: "Generate a concept and let its lore fail first." } };
+      return { status: 409, json: { error: "no failed lore to retry", hint: "Approve a concept and let its lore fail first." } };
     }
     await patchState({ loreStatus: { status: "running", error: null } });
     void (async () => {
       try {
-        const { lore } = await runMonsterWorkflow(concept.prompt, { key: env().FAL_KEY!, fetch }, workflowId());
-        await recordLore(lore);
+        await recordLore(await generateLoreLLM(concept.prompt, { key: env().FAL_KEY!, fetch }));
       } catch (e) {
         await patchState({ loreStatus: { status: "failed", error: String(e) } });
       }

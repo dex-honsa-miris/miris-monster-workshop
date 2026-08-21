@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { probeFal } from "../server/probes";
-import { DEFAULT_WORKFLOW_ID } from "../server/fal";
+
 
 const env = process.env;
 const line = (name: string, ok: boolean | null, detail: string) =>
@@ -11,8 +11,8 @@ const main = async () => {
   if (!env.FAL_KEY) line("FAL_KEY", false, "not set (copy .env.example to .env and fill it in)");
   else { const r = await probeFal(env.FAL_KEY, fetch); line("FAL_KEY", r.ok, r.detail); }
 
-  const wf = env.FAL_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID;
-  line("workflow", null, `${wf} (public Miris workflow; runs bill your fal key)`);
+  line("sketch workflow", null, env.FAL_SKETCH_WORKFLOW ?? "not set (direct model calls)");
+  line("manifest workflow", null, env.FAL_MANIFEST_WORKFLOW ?? "not set (direct model calls)");
 
   console.log("\nPublishing needs no key: you upload the GLB in the Miris portal (app.miris.com)");
   console.log("under your own account and paste the asset id into the app.");

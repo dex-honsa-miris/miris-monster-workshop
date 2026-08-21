@@ -24,15 +24,17 @@ the Miris portal in your browser, so no Miris key goes in this file.
 
 ## The workflow
 
-When you press Sketch it, the app runs a public fal workflow from the Miris
-account. One workflow run takes your sentence and returns the styled concept
-image and the monster's lore document together. You can open the workflow on
-fal to see how it is wired: the pre-prompt that keeps every monster in the
-Miris monster world style, the image model, and the LLM step that writes the
-lore. Fork it on fal afterwards if you want to build your own world.
+Two public fal workflows from the Miris account do the thinking. Sketch it
+runs the first: your sentence goes through a style pre-prompt tuned for
+matte, game-ready monster art and comes back as a concept image you can
+reroll for pennies. Approving runs the second: one pass that sculpts the 3D
+model, writes the lore, stats, and abilities, and draws your monster's
+emblem icon. Open either workflow on fal to see how it is wired, and fork
+them afterwards if you want to build your own world.
 
-If the presenter gives you a different workflow id, put it in `.env` as
-`FAL_WORKFLOW_ID`.
+If the presenter gives you workflow ids, put them in `.env` as
+`FAL_SKETCH_WORKFLOW` and `FAL_MANIFEST_WORKFLOW`; blank means the app runs
+the identical pipeline as direct model calls.
 
 
 ## Summon
