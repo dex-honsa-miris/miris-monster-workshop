@@ -164,3 +164,11 @@ html, body, #root {
   .masthead { top: 20px; }
   .masthead .lockup { width: 52px; }
 }
+
+/* Short viewports (Bolt preview pane with the terminal open, small laptops):
+   compact the masthead so the scene and controls own the height, and lift
+   the controls off the absolute bottom edge so pane clipping can't eat them. */
+@media (max-height: 760px) {
+  .masthead:not([data-compact]) { transform: translateY(-8px) scale(0.62); }
+  .overlay { padding-bottom: clamp(28px, 6vh, 56px); }
+}

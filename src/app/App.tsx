@@ -45,6 +45,13 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => { directorRef.current?.showPhase(phase); }, [phase]);
+  useEffect(() => {
+    // Rehearsal affordance: ?demo-error shows a sample error card so message
+    // placement can be checked without breaking anything for real.
+    if (new URLSearchParams(location.search).has("demo-error")) {
+      setNote({ title: "That didn't work", body: "This is a sample error card for layout checks. The workflow was not called." });
+    }
+  }, []);
   useEffect(() => { directorRef.current?.showChecklist(checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })); }, [status]);
   useEffect(() => { directorRef.current?.setRitualBusy(busy || phase === "summoning"); }, [busy, phase]);
   useEffect(() => { directorRef.current?.showMessage(note); }, [note]);

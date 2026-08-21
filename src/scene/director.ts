@@ -57,7 +57,9 @@ export class SceneDirector {
     this.#stage.scene.add(this.#ritual.group, this.#pedestal.group);
 
     this.#concept.mesh.position.set(0, 1.3, 0.55);
-    this.#message.mesh.position.set(0, 1.75, 1.5);
+    // Below the DOM masthead (which overlays the canvas top-center): a
+    // message at y~1.75 rendered exactly behind the title and was unreadable.
+    this.#message.mesh.position.set(0, 1.35, 1.3);
     this.#stage.scene.add(this.#checklist.mesh, this.#concept.mesh, this.#stats.mesh, this.#message.mesh);
 
     paintChecklist(this.#checklist, []);
