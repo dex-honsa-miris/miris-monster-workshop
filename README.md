@@ -106,3 +106,12 @@ If doctor passes but something in the app still is not working:
 - **Your fork lost its `.env` values.** This usually means the fork was made while signed out of StackBlitz. Sign in, fork again, and re-enter your keys.
 
 If you are stuck on anything not covered here, ask a helper. Everyone's first monster takes a little longer than the second one.
+
+## Bonus: html-in-canvas
+
+The panels floating in the 3D scene are card textures. In browsers that
+implement the experimental html-in-canvas API (WICG proposal, behind
+chrome://flags/#canvas-draw-element in Chromium), the app renders those cards
+from live HTML and CSS with drawElementImage. Everywhere else it falls back
+to drawing the same content with canvas text calls, so nothing is required
+from you. If you want to see the live path, flip the flag and reload.

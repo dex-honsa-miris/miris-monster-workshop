@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { annotationMarkup, checklistMarkup, conceptMarkup, messageMarkup, statsMarkup } from "./card-html";
 import type { ChecklistItem, Phase } from "../app/checklist-model";
 import type { MonsterLore } from "../../server/lore-schema";
 
@@ -44,6 +45,35 @@ function resetTracking(ctx: CanvasRenderingContext2D): void {
   try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px"; } catch { /* noop */ }
 }
 
+// --- WICG html-in-canvas (chrome://flags/#canvas-draw-element) ---------------
+// When the API exists, cards rasterize LIVE HTML elements into their textures
+// (drawElementImage); otherwise the fillText painters below draw the same
+// content. Detection is a real prototype check, not a UA sniff.
+interface ElementDrawingContext extends CanvasRenderingContext2D {
+  drawElementImage(element: Element, dx: number, dy: number, dw?: number, dh?: number): void;
+}
+
+export const htmlInCanvasSupported =
+  typeof CanvasRenderingContext2D !== "undefined" &&
+  "drawElementImage" in CanvasRenderingContext2D.prototype;
+
+/** Host for the live card DOM the html path rasterizes from. Chromium only
+ * keeps a paint record for elements that actually PAINT: offscreen positions
+ * and opacity:0 both cull them (measured), which makes drawElementImage throw
+ * "No cached paint record". A scale(0.001) ancestor keeps the subtree painted
+ * while rendering it a fraction of a pixel tall in the corner. */
+let domHost: HTMLDivElement | null = null;
+function cardDomHost(): HTMLDivElement {
+  if (!domHost) {
+    domHost = document.createElement("div");
+    domHost.id = "card-dom-host";
+    domHost.style.cssText =
+      "position:fixed;left:0;top:0;transform:scale(0.001);transform-origin:top left;pointer-events:none;z-index:0";
+    document.body.append(domHost);
+  }
+  return domHost;
+}
+
 /** Card canvases render at 2x their logical resolution: at typical card
  * distance a 512-logical card covers 1000+ device pixels on a DPR-2 screen,
  * and a 1:1 texture reads visibly soft. Painters and hit-testing stay in
@@ -69,9 +99,56 @@ export class CanvasCard {
     mat.toneMapped = false;
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH), mat);
   }
+  #htmlRoot: HTMLDivElement | null = null;
+  #fontsHooked = false;
+
   /** LOGICAL pixel size: what painters and hit-tests reason in. */
   get pxWidth(): number { return this.#logicalW; }
   get pxHeight(): number { return this.#logicalH; }
+
+  /** html-in-canvas path: mount the markup as a LIVE child of this card's
+   * canvas (which needs layout, so the canvas lives in the hidden DOM host)
+   * and rasterize it with drawElementImage. Layout runs asynchronously after
+   * a DOM mutation, so the draw lands on the next frame; images and late
+   * webfonts trigger their own redraws. */
+  paintHtml(html: string): void {
+    if (!this.#htmlRoot) {
+      this.#canvas.setAttribute("layoutsubtree", "");
+      this.#htmlRoot = document.createElement("div");
+      this.#htmlRoot.style.cssText = `width:${this.#logicalW}px;height:${this.#logicalH}px`;
+      this.#canvas.append(this.#htmlRoot);
+      cardDomHost().append(this.#canvas);
+    }
+    this.#htmlRoot.innerHTML = html;
+    for (const img of this.#htmlRoot.querySelectorAll("img")) {
+      if (!img.complete) img.addEventListener("load", () => this.#drawElement(), { once: true });
+    }
+    if (!this.#fontsHooked) {
+      this.#fontsHooked = true;
+      document.fonts?.ready.then(() => this.#drawElement()).catch(() => undefined);
+    }
+    // A fresh subtree has no paint record until the NEXT frame has painted;
+    // rAF callbacks run pre-paint, so a single rAF still sees the old record
+    // state. Double-rAF lands after that paint.
+    requestAnimationFrame(() => requestAnimationFrame(() => this.#drawElement()));
+  }
+
+  #drawElement(retries = 8): void {
+    const root = this.#htmlRoot;
+    if (!root || !root.isConnected) return;
+    const ctx = this.#canvas.getContext("2d") as ElementDrawingContext;
+    ctx.setTransform(SUPERSAMPLE, 0, 0, SUPERSAMPLE, 0, 0);
+    ctx.clearRect(0, 0, this.#logicalW, this.#logicalH);
+    try {
+      ctx.drawElementImage(root, 0, 0, this.#logicalW, this.#logicalH);
+      this.texture.needsUpdate = true;
+    } catch (e) {
+      // "No cached paint record" simply means the compositor has not painted
+      // the new subtree yet; try again next frame, bounded.
+      if (retries > 0) requestAnimationFrame(() => this.#drawElement(retries - 1));
+      else console.warn("[workshop] drawElementImage kept failing; card left as-is:", e);
+    }
+  }
   paint(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): void {
     const ctx = this.#canvas.getContext("2d")!;
     ctx.setTransform(SUPERSAMPLE, 0, 0, SUPERSAMPLE, 0, 0);
@@ -83,6 +160,7 @@ export class CanvasCard {
     this.texture.dispose();
     (this.mesh.material as THREE.Material).dispose();
     this.mesh.geometry.dispose();
+    this.#canvas.remove(); // detaches from the DOM host on the html path
   }
 }
 
@@ -137,6 +215,7 @@ export function checklistRowAt(rows: ChecklistRow[], xPx: number, yPx: number, c
 }
 
 export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: string | null = null): void {
+  if (htmlInCanvasSupported) { card.paintHtml(checklistMarkup(phases, hoverId)); return; }
   const { entries } = layoutChecklist(phases);
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
@@ -177,6 +256,7 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
 }
 
 export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: string }): void {
+  if (htmlInCanvasSupported) { card.paintHtml(annotationMarkup(a)); return; }
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
@@ -190,6 +270,7 @@ export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: str
 }
 
 export function paintStats(card: CanvasCard, lore: MonsterLore): void {
+  if (htmlInCanvasSupported) { card.paintHtml(statsMarkup(lore)); return; }
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
@@ -220,7 +301,15 @@ export function paintStats(card: CanvasCard, lore: MonsterLore): void {
   });
 }
 
-export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap | null; prompt: string; rerolls: number }): void {
+export function paintConcept(
+  card: CanvasCard,
+  opts: { imageBitmap: ImageBitmap | null; imageUrl?: string | null; prompt: string; rerolls: number },
+): void {
+  if (htmlInCanvasSupported) {
+    // The live <img> in the template loads itself; no fetch/bitmap needed.
+    card.paintHtml(conceptMarkup({ imageUrl: opts.imageUrl ?? null, prompt: opts.prompt, rerolls: opts.rerolls }));
+    return;
+  }
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     if (opts.imageBitmap) ctx.drawImage(opts.imageBitmap, 24, 24, w - 48, w - 48);
@@ -238,6 +327,7 @@ export function paintConcept(card: CanvasCard, opts: { imageBitmap: ImageBitmap 
 }
 
 export function paintMessage(card: CanvasCard, opts: { title: string; body: string }): void {
+  if (htmlInCanvasSupported) { card.paintHtml(messageMarkup(opts)); return; }
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;

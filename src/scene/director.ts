@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { anchorFor, cardPositionFor, placeAnnotationCard } from "./annotations";
-import { CanvasCard, checklistRowAt, layoutChecklist, paintAnnotation, paintChecklist, paintConcept, paintMessage, paintStats } from "./cards";
+import { CanvasCard, checklistRowAt, htmlInCanvasSupported, layoutChecklist, paintAnnotation, paintChecklist, paintConcept, paintMessage, paintStats } from "./cards";
 import { Pedestal } from "./pedestal";
 import { RitualCircle } from "./ritual";
 import { SceneStage } from "./stage";
@@ -126,12 +126,15 @@ export class SceneDirector {
 
   showConcept(c: ConceptView): void {
     // Paint the text-only state first so the card never flashes empty while
-    // the preview image downloads.
-    paintConcept(this.#concept, { imageBitmap: null, prompt: c.prompt, rerolls: c.rerolls });
+    // the preview image downloads. On the html-in-canvas path the template's
+    // live <img> handles its own loading and redraw.
+    paintConcept(this.#concept, { imageBitmap: null, imageUrl: c.imageUrl, prompt: c.prompt, rerolls: c.rerolls });
     this.#hasConcept = true;
     this.#applyVisibility();
-    const token = ++this.#conceptToken;
-    void this.#loadConceptImage(c, token);
+    if (!htmlInCanvasSupported) {
+      const token = ++this.#conceptToken;
+      void this.#loadConceptImage(c, token);
+    }
   }
 
   setRitualBusy(busy: boolean): void {

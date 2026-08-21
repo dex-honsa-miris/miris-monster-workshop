@@ -84,3 +84,11 @@ The concept image is fetched directly (`fetch(imageUrl)` then `createImageBitmap
 ## Sign off
 
 Do not consider the workshop ready until every box above is checked by someone who ran the actual step, on a fresh fork, with real keys, against real services. A check based on reading the code instead of running it does not count.
+
+## 10. html-in-canvas showcase (presenter machine)
+
+Enable chrome://flags/#canvas-draw-element on the presenter machine, reload
+the app, and confirm the checklist card renders from live HTML (inspect
+#card-dom-host in devtools; hover a key row and watch the DOM update). Then
+confirm a stock browser without the flag still renders every card via the
+painted fallback. This is a talking point, not an attendee requirement.
