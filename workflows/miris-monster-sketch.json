@@ -1,0 +1,91 @@
+{
+  "name": "workflow",
+  "nodes": {
+    "output": {
+      "type": "display",
+      "id": "output",
+      "depends": [
+        "node-m9oQf56yLr",
+        "shape"
+      ],
+      "input": {},
+      "metadata": {
+        "position": {
+          "x": 1460,
+          "y": 20
+        }
+      },
+      "fields": {
+        "image_url": "$node-m9oQf56yLr.images.0.url",
+        "styled_prompt": "$shape.output"
+      }
+    },
+    "node-m9oQf56yLr": {
+      "type": "run",
+      "id": "node-m9oQf56yLr",
+      "depends": [
+        "shape"
+      ],
+      "metadata": {
+        "position": {
+          "x": 700,
+          "y": -100
+        }
+      },
+      "app": "openai/gpt-image-2",
+      "input": {
+        "quality": "high",
+        "image_size": "square_hd",
+        "prompt": "$shape.output",
+        "output_format": "jpeg"
+      }
+    },
+    "shape": {
+      "type": "run",
+      "id": "shape",
+      "depends": [],
+      "metadata": {
+        "position": {
+          "x": 340,
+          "y": -100
+        }
+      },
+      "app": "fal-ai/any-llm",
+      "input": {
+        "model": "google/gemini-flash-1.5",
+        "system_prompt": "You turn a player's monster idea into ONE image-generation prompt for the Miris monster world.\nReply with ONLY the finished prompt, no preamble, no quotes, one paragraph.\nAlways describe: a single full-body creature, centered, three-quarter view, standing on a plain pale disc, clean light gray studio background, no scenery.\nAlways require this style: stylized fantasy creature design for a monster-taming video game, collectible game asset, clean bold shapes, chunky readable silhouette, cel-shaded with soft matte textures, flat colors with simple two-tone shading, minimal specular highlights, matte finish, friendly-with-an-edge character design.\nNever allow: photorealism, gloss, shine, wet look, chrome, metallic sheen, specular hotspots, text, humans, multiple creatures.\nKeep every concrete detail the player asked for (species, colors, props, mood) and elaborate it into readable game-creature anatomy.",
+        "prompt": "$input.prompt"
+      }
+    }
+  },
+  "output": {
+    "image_url": "$node-m9oQf56yLr.images.0.url",
+    "styled_prompt": "$shape.output"
+  },
+  "schema": {
+    "input": {
+      "prompt": {
+        "name": "text",
+        "label": "Text Field",
+        "description": "A text field",
+        "required": false,
+        "defaultValue": "",
+        "examples": [],
+        "ui": {
+          "field": "textarea"
+        },
+        "type": "string"
+      }
+    },
+    "output": {}
+  },
+  "version": "1",
+  "metadata": {
+    "input": {
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  }
+}

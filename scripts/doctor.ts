@@ -11,8 +11,9 @@ const main = async () => {
   if (!env.FAL_KEY) line("FAL_KEY", false, "not set (copy .env.example to .env and fill it in)");
   else { const r = await probeFal(env.FAL_KEY, fetch); line("FAL_KEY", r.ok, r.detail); }
 
-  line("sketch workflow", null, env.FAL_SKETCH_WORKFLOW ?? "not set (direct model calls)");
-  line("manifest workflow", null, env.FAL_MANIFEST_WORKFLOW ?? "not set (direct model calls)");
+  const { SKETCH_WORKFLOW, MANIFEST_WORKFLOW } = await import("../server/fal");
+  line("sketch workflow", null, env.FAL_SKETCH_WORKFLOW ?? SKETCH_WORKFLOW);
+  line("manifest workflow", null, env.FAL_MANIFEST_WORKFLOW ?? MANIFEST_WORKFLOW);
 
   console.log("\nPublishing needs no key: you upload the GLB in the Miris portal (app.miris.com)");
   console.log("under your own account and paste the asset id into the app.");

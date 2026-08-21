@@ -1,13 +1,53 @@
 # fal workflow build sheets
 
-Two public workflows on the Miris fal account power the pipeline. Until they
-exist, the app runs the SAME chains as direct model calls (the prompts below
-live in server/guardrails.ts and were validated live on 2026-08-21), so
-building these is transcription, not design. Set the ids in .env as
-FAL_SKETCH_WORKFLOW and FAL_MANIFEST_WORKFLOW once published, and hardcode
-them as the defaults in server/api.ts before the event.
+**BUILT AND VERIFIED 2026-08-21.** Both workflows are live and public on the
+Miris fal account, pinned as defaults in server/fal.ts:
 
-## Workflow 1: monster-sketch (runs per reroll, must stay cheap)
+- `workflows/dexhonsa/miris-monster-sketch`
+- `workflows/dexhonsa/miris-monster-manifest`
+
+Their exact graphs are versioned in `workflows/*.json` (fetched from the API,
+re-postable with PATCH). What follows documents the format and the hard-won
+rules, since the workflow API is alpha and undocumented.
+
+## The reference syntax (discovered empirically)
+
+Node inputs and workflow outputs reference values with `$` paths:
+
+- workflow input: `$input.prompt`
+- another node's output: `$nodeId.output`, `$nodeId.images.0.url`, `$nodeId.model_mesh.url`
+
+**Only WHOLE-VALUE references resolve.** A reference embedded in a longer
+string (`"...style text... $input.prompt ..."`) is passed through LITERALLY:
+the run completes, the image looks stylish, and the attendee's actual idea is
+silently missing (verified: "a bright red octopus in a purple top hat"
+produced a generic leaf-beast). This is why the sketch workflow shapes its
+prompt in an LLM node instead of string-concatenating: the style bible lives
+in that node's STATIC `system_prompt`, and `prompt` is the whole-value
+`$input.prompt`.
+
+## API notes
+
+- Base: `https://rest.alpha.fal.ai/workflows/` (needs an ADMIN key; run keys
+  get 403). Create = POST, read = GET `/{nickname}/{name}`, update = **PATCH**
+  (PUT and POST both 405), delete = DELETE.
+- Body: `{ name, title, is_public, contents }`; `contents` =
+  `{ name, version: "1", nodes, output, schema, metadata }`.
+- Nodes: `{ type: "run" | "display", id, depends: [], app, input, metadata:
+  { position } }`. The editor also keeps a `display` node whose `fields`
+  mirror the workflow `output`.
+- The API does NOT validate node inputs or references. A malformed graph
+  saves happily and fails (or silently misbehaves) at run time, so always
+  run a workflow after changing it.
+
+## Workflow 1: miris-monster-sketch (runs per reroll)
+
+As built: node `shape` (fal-ai/any-llm, gemini-flash-1.5) turns the
+attendee's sentence into a full styled image prompt using the style bible as
+its system prompt; node `node-...` (openai/gpt-image-2, square_hd) renders it.
+Output: `{ image_url, styled_prompt }`.
+
+Original build sheet (kept for reference and for anyone rebuilding by hand):
 
 Input: `prompt` (string, the attendee's sentence; the app sanitizes it first)
 
@@ -31,7 +71,15 @@ Negative prompt:
 Output mapping the app accepts: `image_url` (preferred), or `image.url`, or
 `images[0].url`.
 
-## Workflow 2: monster-manifest (runs once, at approve)
+## Workflow 2: miris-monster-manifest (runs once, at approve)
+
+As built, four run nodes: `model3d` (fal-ai/trellis on `$input.image_url`),
+`lore` (any-llm with the lore system prompt on `$input.prompt`), `iconprompt`
+(any-llm writing an emblem prompt) then `icon` (flux/schnell on
+`$iconprompt.output`). Output: `{ model_url, lore, icon_url }`. The lore LLM
+often wraps its JSON in markdown fences; the app's parser strips them.
+
+Original build sheet:
 
 Inputs: `prompt` (string), `image_url` (the approved sketch)
 

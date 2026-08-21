@@ -72,6 +72,11 @@ export async function generateModel(
 //   sketch:   { "image_url": "<concept image>" }
 //   manifest: { "model_url": "<glb>", "lore": { ...loreSchema }, "icon_url": "<png>" }
 
+// The public Miris workflows (built 2026-08-21, verified end to end). Both
+// are public on the fal account, so attendees run them with their own key.
+export const SKETCH_WORKFLOW = "workflows/dexhonsa/miris-monster-sketch";
+export const MANIFEST_WORKFLOW = "workflows/dexhonsa/miris-monster-manifest";
+
 const MODEL_LLM = "fal-ai/any-llm";
 const LLM_NAME = "google/gemini-flash-1.5";
 

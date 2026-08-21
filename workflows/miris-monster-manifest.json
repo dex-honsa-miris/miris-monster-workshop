@@ -1,0 +1,129 @@
+{
+  "name": "workflow",
+  "version": "1",
+  "nodes": {
+    "model3d": {
+      "type": "run",
+      "id": "model3d",
+      "depends": [],
+      "metadata": {
+        "position": {
+          "x": 380,
+          "y": -260
+        }
+      },
+      "app": "fal-ai/trellis",
+      "input": {
+        "image_url": "$input.image_url"
+      }
+    },
+    "lore": {
+      "type": "run",
+      "id": "lore",
+      "depends": [],
+      "metadata": {
+        "position": {
+          "x": 380,
+          "y": 0
+        }
+      },
+      "app": "fal-ai/any-llm",
+      "input": {
+        "model": "google/gemini-flash-1.5",
+        "system_prompt": "You are the lore keeper of the Miris monster world: warm, slightly mischievous, never grimdark.\nReply with ONLY a JSON object, no markdown fences, matching exactly:\n{\n  \"name\": \"1-3 words\",\n  \"epithet\": \"the ...\",\n  \"lore\": \"<= 60 words\",\n  \"element\": one of [\"ember\",\"tide\",\"bloom\",\"storm\",\"umbra\",\"chime\"],\n  \"stats\": { \"might\": 1-10, \"agility\": 1-10, \"arcana\": 1-10, \"mischief\": 1-10, \"resolve\": 1-10 },\n  \"abilities\": [2-3 of { \"name\": \"<= 3 words\", \"blurb\": \"<= 12 words\" }],\n  \"annotations\": [3-5 of { \"slot\": one of [\"crown\",\"face\",\"left\",\"right\",\"core\",\"base\",\"aura\"], \"label\": \"<= 4 words\", \"blurb\": \"<= 12 words\" }]\n}",
+        "prompt": "$input.prompt"
+      }
+    },
+    "iconprompt": {
+      "type": "run",
+      "id": "iconprompt",
+      "depends": [],
+      "metadata": {
+        "position": {
+          "x": 380,
+          "y": 240
+        }
+      },
+      "app": "fal-ai/any-llm",
+      "input": {
+        "model": "google/gemini-flash-1.5",
+        "system_prompt": "You write ONE image prompt for a monster's emblem icon. Reply with ONLY the prompt.\nAlways: flat game emblem icon, bold simple shape, two flat colors plus a dark outline, matte, centered on a plain solid background, no text, sticker-like video game ability icon.\nBase the emblem on the monster idea you are given (its element, silhouette, or signature feature).",
+        "prompt": "$input.prompt"
+      }
+    },
+    "icon": {
+      "type": "run",
+      "id": "icon",
+      "depends": [
+        "iconprompt"
+      ],
+      "metadata": {
+        "position": {
+          "x": 760,
+          "y": 240
+        }
+      },
+      "app": "fal-ai/flux/schnell",
+      "input": {
+        "prompt": "$iconprompt.output",
+        "image_size": "square",
+        "num_images": 1,
+        "enable_safety_checker": true
+      }
+    },
+    "output": {
+      "type": "display",
+      "id": "output",
+      "depends": [
+        "model3d",
+        "lore",
+        "icon"
+      ],
+      "metadata": {
+        "position": {
+          "x": 1180,
+          "y": 0
+        }
+      },
+      "input": {},
+      "fields": {
+        "model_url": "$model3d.model_mesh.url",
+        "lore": "$lore.output",
+        "icon_url": "$icon.images.0.url"
+      }
+    }
+  },
+  "output": {
+    "model_url": "$model3d.model_mesh.url",
+    "lore": "$lore.output",
+    "icon_url": "$icon.images.0.url"
+  },
+  "schema": {
+    "input": {
+      "prompt": {
+        "name": "prompt",
+        "label": "Monster description",
+        "type": "string",
+        "required": true,
+        "ui": {
+          "field": "textarea"
+        }
+      },
+      "image_url": {
+        "name": "image_url",
+        "label": "Approved sketch URL",
+        "type": "string",
+        "required": true
+      }
+    },
+    "output": {}
+  },
+  "metadata": {
+    "input": {
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  }
+}
