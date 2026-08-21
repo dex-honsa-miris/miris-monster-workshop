@@ -10,34 +10,30 @@ Before you fork this project, sign into StackBlitz. If you fork while signed out
 
 ## Get set up
 
-Once you have forked the project, copy `.env.example` to `.env` and fill in three keys. Each one comes from a different dashboard.
+Once you have forked the project, copy `.env.example` to `.env` and fill in
+one key.
 
 **FAL_KEY**
 Go to the fal.ai dashboard and open Keys. Create a key and paste it in.
-
-**AI_GATEWAY_API_KEY**
-Go to the Vercel dashboard, open AI Gateway, then API Keys. Create a key and paste it in. New Vercel accounts get five dollars of free credit, which is more than enough for the workshop.
-
-**MIRIS_API_TOKEN**
-Go to your Miris account settings and find the API token section. Copy your token and paste it in.
-
 You will also see a fal coupon mentioned at the workshop.
 
-Coupon code: announced at the workshop
+That is the only key you need. The prompt shaping, concept art, and monster
+lore all come from a public fal workflow that Miris maintains; your key pays
+for the runs, the workflow does the thinking. Publishing to Miris happens in
+the Miris portal in your browser, so no Miris key goes in this file.
 
-Two more keys in `.env.example` are optional and you can leave them blank unless a helper tells you otherwise:
+## The workflow
 
-- `VERCEL_TOKEN`: only needed if the Vercel CLI deploy fails inside your browser sandbox. It lets the deploy script fall back to a direct REST call.
-- `MIRIS_API_BASE`: only needed if you are pointed at a non default Miris environment.
-- `VIEWER_KEY`: only needed if your Miris account requires a key to view processed assets. If you have one, put it here and the deploy script will bake it into your published viewer.
+When you press Sketch it, the app runs a public fal workflow from the Miris
+account. One workflow run takes your sentence and returns the styled concept
+image and the monster's lore document together. You can open the workflow on
+fal to see how it is wired: the pre-prompt that keeps every monster in the
+Miris monster world style, the image model, and the LLM step that writes the
+lore. Fork it on fal afterwards if you want to build your own world.
 
-Once your `.env` is filled in, run:
+If the presenter gives you a different workflow id, put it in `.env` as
+`FAL_WORKFLOW_ID`.
 
-```
-npm run doctor
-```
-
-This checks all three required keys against the real services and tells you exactly what is wrong if something is not working, rather than making you guess. Keep the app open in another tab (`npm run dev`) so you can watch the checklist there update to "done" for each key as it becomes valid.
 
 ## Summon
 
@@ -55,9 +51,17 @@ This writes `monster.glb` and `lore.json` to your workshop directory without tou
 
 ## Publish
 
-When your monster and its lore are both ready, upload it to Miris. This sends your finished glb file to your Miris account for processing. Processing can take a little while. The checklist will show "doing" until Miris marks the asset ready, then it flips to "done."
+Publishing is a trip through the Miris portal, in your own account:
 
-If you upload the exact same file twice, the pipeline recognizes it and reuses the existing asset instead of creating a duplicate.
+1. In the app, press Download monster.glb.
+2. Press Open the Miris portal (app.miris.com) and sign in, or create your
+   Miris account if you have not yet.
+3. Upload the GLB as a new asset and wait for processing to finish.
+4. Copy the asset id from the asset page and paste it into the app, then
+   press Save asset id.
+
+The checklist ticks itself once the id is saved.
+
 
 ## Deploy
 
@@ -100,7 +104,7 @@ If doctor passes but something in the app still is not working:
 
 - **Concept generation fails or times out.** fal.ai balance is not visible through the API, so if `FAL_KEY` checks out in doctor but generation still fails, check your balance directly on the fal.ai dashboard.
 - **The 3D summon seems stuck.** It can genuinely take a couple of minutes. If it has been much longer than that, refresh the app; the pipeline will pick up where it left off rather than starting over.
-- **Upload to Miris fails.** Confirm `MIRIS_API_TOKEN` is valid with `npm run doctor`, and if you were given a custom `MIRIS_API_BASE`, double check it is set correctly in `.env`.
+- **Portal upload trouble.** The upload happens on app.miris.com in your own account, not in this app. If processing seems stuck, refresh the asset page in the portal; paste the asset id here only once the asset shows as ready.
 - **Viewing your published asset gives a 401 or looks broken.** Some Miris accounts require a `VIEWER_KEY` to read processed assets. Ask a workshop helper whether this applies to you, then set `VIEWER_KEY` in `.env` and redeploy.
 - **The deploy fails with no Vercel session.** Either run `npx vercel login` inside your StackBlitz terminal and deploy again, or set `VERCEL_TOKEN` in `.env` from your Vercel dashboard under Settings, Tokens, and run `npm run deploy` again. The script will use whichever path works.
 - **Your fork lost its `.env` values.** This usually means the fork was made while signed out of StackBlitz. Sign in, fork again, and re-enter your keys.

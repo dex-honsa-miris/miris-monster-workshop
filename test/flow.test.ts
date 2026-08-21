@@ -3,11 +3,7 @@ import { flowPhase } from "../src/app/flow";
 import type { WorkshopStatus } from "../server/status";
 
 const status = (over: Partial<WorkshopStatus>): WorkshopStatus => ({
-  keys: {
-    fal: { present: true, valid: true, detail: "" },
-    gateway: { present: true, valid: true, detail: "" },
-    miris: { present: true, valid: true, detail: "" },
-  },
+  keys: { fal: { present: true, valid: true, detail: "" } },
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },
   lore: { ready: false, status: "none", error: null },
@@ -19,7 +15,7 @@ const status = (over: Partial<WorkshopStatus>): WorkshopStatus => ({
 describe("flowPhase", () => {
   it("is setup with no status or invalid keys", () => {
     expect(flowPhase(null)).toBe("setup");
-    expect(flowPhase(status({ keys: { ...status({}).keys, fal: { present: false, valid: null, detail: "" } } }))).toBe("setup");
+    expect(flowPhase(status({ keys: { fal: { present: false, valid: null, detail: "" } } }))).toBe("setup");
   });
   it("moves to create once keys validate", () => {
     expect(flowPhase(status({}))).toBe("create");

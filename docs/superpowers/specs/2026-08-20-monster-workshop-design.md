@@ -183,3 +183,21 @@ misbehaves in the WebContainer, falls back to Vercel's REST deploy API with
 | Gateway haiku model string drift | Verified at build time; `doctor.mjs` validates the model responds, not just the key. |
 | StackBlitz fork persistence | Checklist item zero instructs signing into StackBlitz before forking. |
 | Keys visible in a browser-hosted project | Workshop guidance: keys are workshop-scoped and disposable; `.env` is gitignored and never leaves the fork. |
+
+## Addendum (2026-08-21): two pivots, decided by the owner
+
+1. The prompt-shaping and lore pipeline moved OUT of this repo and into a
+   public fal WORKFLOW on the Miris account (decision supersedes rows 3 and
+   4's Gateway/handrolled-lore aspects). POST /api/concept runs the workflow
+   (id from FAL_WORKFLOW_ID, default in server/fal.ts) and receives the
+   concept image and the lore document together; the Vercel AI Gateway
+   account, key, probe, and dependencies (ai, @ai-sdk/gateway, msw) are
+   removed. Attendees need only FAL_KEY. The output contract lives as a
+   comment block above parseWorkflowOutput in server/fal.ts.
+
+2. Publishing is manual through the Miris portal (supersedes decision 1's
+   token-based upload): attendees download monster.glb from the app, upload
+   it at app.miris.com under their own account, and paste the asset id back
+   (POST /api/asset-id). server/miris.ts, MIRIS_API_TOKEN, and the probe are
+   removed. A "login with Miris" OAuth flow remains a possible upgrade if
+   client credentials materialize; it is not built.

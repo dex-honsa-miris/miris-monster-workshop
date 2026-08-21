@@ -1,8 +1,6 @@
 import "dotenv/config";
-import { generateText } from "ai";
-import { gateway } from "@ai-sdk/gateway";
-import { probeFal, probeGateway, probeMiris } from "../server/probes";
-import { LORE_MODEL_ID } from "../server/lore";
+import { probeFal } from "../server/probes";
+import { DEFAULT_WORKFLOW_ID } from "../server/fal";
 
 const env = process.env;
 const line = (name: string, ok: boolean | null, detail: string) =>
@@ -13,21 +11,11 @@ const main = async () => {
   if (!env.FAL_KEY) line("FAL_KEY", false, "not set (copy .env.example to .env and fill it in)");
   else { const r = await probeFal(env.FAL_KEY, fetch); line("FAL_KEY", r.ok, r.detail); }
 
-  if (!env.AI_GATEWAY_API_KEY) line("AI_GATEWAY_API_KEY", false, "not set");
-  else {
-    const r = await probeGateway(env.AI_GATEWAY_API_KEY, fetch);
-    line("AI_GATEWAY_API_KEY", r.ok, r.detail);
-    if (r.ok) {
-      try {
-        await generateText({ model: gateway(LORE_MODEL_ID), prompt: "ping", maxOutputTokens: 1 });
-        line(`model ${LORE_MODEL_ID}`, true, "responds");
-      } catch (e) { line(`model ${LORE_MODEL_ID}`, false, String(e).slice(0, 100)); }
-    }
-  }
+  const wf = env.FAL_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID;
+  line("workflow", null, `${wf} (public Miris workflow; runs bill your fal key)`);
 
-  if (!env.MIRIS_API_TOKEN) line("MIRIS_API_TOKEN", false, "not set");
-  else { const r = await probeMiris(env.MIRIS_API_TOKEN, env.MIRIS_API_BASE ?? "https://api.miris.com", fetch); line("MIRIS_API_TOKEN", r.ok, r.detail); }
-
-  console.log("\nfal balance is not exposed via API - check https://fal.ai/dashboard if generations fail.");
+  console.log("\nPublishing needs no key: you upload the GLB in the Miris portal (app.miris.com)");
+  console.log("under your own account and paste the asset id into the app.");
+  console.log("fal balance is not exposed via API - check https://fal.ai/dashboard if generations fail.");
 };
 main();

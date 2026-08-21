@@ -3,26 +3,25 @@ import { checklistFrom } from "../src/app/checklist-model";
 import type { WorkshopStatus } from "../server/status";
 
 const BASE: WorkshopStatus = {
-  keys: {
-    fal: { present: true, valid: true, detail: "ok" },
-    gateway: { present: true, valid: false, detail: "gateway said 401" },
-    miris: { present: false, valid: null, detail: "not set" },
-  },
+  keys: { fal: { present: true, valid: false, detail: "fal rejected the key" } },
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },
   lore: { ready: false, status: "none", error: null },
+  loreStatus: undefined as never,
   upload: { glbSha: null, assetId: null, state: "none", error: null },
   deployment: { url: null },
-};
+} as unknown as WorkshopStatus;
 
 describe("checklistFrom", () => {
   it("maps key states to done/error/todo", () => {
     const setup = checklistFrom(BASE)[0]!;
     const byId = Object.fromEntries(setup.items.map((i) => [i.id, i]));
-    expect(byId["key-fal"]!.state).toBe("done");
-    expect(byId["key-gateway"]!.state).toBe("error");
-    expect(byId["key-gateway"]!.detail).toContain("401");
-    expect(byId["key-miris"]!.state).toBe("todo");
+    expect(byId["key-fal"]!.state).toBe("error");
+    expect(byId["key-fal"]!.detail).toContain("rejected");
+    const ok = checklistFrom({ ...BASE, keys: { fal: { present: true, valid: true, detail: "" } } });
+    expect(ok[0]!.items.find((i) => i.id === "key-fal")!.state).toBe("done");
+    const missing = checklistFrom({ ...BASE, keys: { fal: { present: false, valid: null, detail: "not set" } } });
+    expect(missing[0]!.items.find((i) => i.id === "key-fal")!.state).toBe("todo");
   });
   it("shows the model as doing while running and error on failure", () => {
     const doing = checklistFrom({ ...BASE, model: { status: "running", glbPath: null, error: null } });
@@ -58,11 +57,17 @@ describe("checklistFrom environment", () => {
     const local = checklistFrom(BASE, { inStackBlitz: false });
     expect(local[0]!.items[0]!.state).toBe("todo");
   });
-  it("key rows link to their dashboards", () => {
-    const setup = checklistFrom(BASE)[0]!;
-    const byId = Object.fromEntries(setup.items.map((i) => [i.id, i]));
-    expect(byId["key-fal"]!.href).toContain("fal.ai");
-    expect(byId["key-gateway"]!.href).toContain("vercel.com");
-    expect(byId["key-miris"]!.href).toContain("miris.com");
+  it("the fal row links to its dashboard and publish links to the portal", () => {
+    const phases = checklistFrom(BASE);
+    const setup = Object.fromEntries(phases[0]!.items.map((i) => [i.id, i]));
+    expect(setup["key-fal"]!.href).toContain("fal.ai");
+    const publish = phases[2]!.items[0]!;
+    expect(publish.id).toBe("asset-id");
+    expect(publish.href).toContain("app.miris.com");
+  });
+  it("pasting an asset id completes the publish phase", () => {
+    const done = checklistFrom({ ...BASE, upload: { glbSha: null, assetId: "a-1", state: "ready", error: null } });
+    expect(done[2]!.items[0]!.state).toBe("done");
+    expect(done[2]!.items[0]!.detail).toBe("a-1");
   });
 });

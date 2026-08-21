@@ -1,4 +1,5 @@
-import { buildConceptPrompt } from "./guardrails";
+import { buildConceptPrompt, sanitizeUserPrompt } from "./guardrails";
+import { loreSchema, type MonsterLore } from "./lore-schema";
 
 export interface FalDeps { key: string; fetch: typeof fetch; sleep?: (ms: number) => Promise<void> }
 
@@ -55,4 +56,46 @@ export async function generateModel(
   const dl = await deps.fetch(out.model_mesh.url, { headers: { Authorization: `Key ${deps.key}` } });
   if (!dl.ok) throw new Error(`mesh download failed: ${dl.status}`);
   return { glb: await dl.arrayBuffer() };
+}
+
+// --- fal Workflows -----------------------------------------------------------
+// The prompt -> pre-prompt -> concept image -> lore/details chain lives in a
+// PUBLIC fal workflow on the Miris account (built in the fal workflow editor,
+// runnable by anyone; runs bill the CALLER's key). The app only knows the
+// workflow id and this output contract:
+//
+//   { "image_url": "<concept image>", "lore": { ...loreSchema document } }
+//
+// The parser is tolerant of the common fal shapes (images[], image.url, lore
+// under details/monster) so editor rewires don't break the app; a lore that
+// fails schema validation degrades to null (the UI offers Retry) instead of
+// failing the whole concept.
+
+export const DEFAULT_WORKFLOW_ID = "workflows/dex-honsa/miris-monster-workshop";
+
+export function parseWorkflowOutput(raw: unknown): { imageUrl: string; lore: MonsterLore | null } {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const imageUrl =
+    (typeof o.image_url === "string" && o.image_url) ||
+    ((o.image as { url?: string } | undefined)?.url ?? null) ||
+    ((o.images as Array<{ url?: string }> | undefined)?.[0]?.url ?? null);
+  if (!imageUrl) throw new Error("workflow returned no image (expected image_url, image.url, or images[0].url)");
+  let lore: MonsterLore | null = null;
+  for (const key of ["lore", "details", "monster"]) {
+    const candidate = o[key];
+    if (!candidate) continue;
+    const parsed = loreSchema.safeParse(candidate);
+    if (parsed.success) { lore = parsed.data; break; }
+  }
+  return { imageUrl: imageUrl as string, lore };
+}
+
+export async function runMonsterWorkflow(
+  userText: string,
+  deps: FalDeps,
+  workflowId: string = DEFAULT_WORKFLOW_ID,
+): Promise<{ imageUrl: string; lore: MonsterLore | null }> {
+  const prompt = sanitizeUserPrompt(userText);
+  const out = await falQueue(workflowId, { prompt }, deps);
+  return parseWorkflowOutput(out);
 }

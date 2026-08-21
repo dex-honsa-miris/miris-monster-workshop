@@ -3,13 +3,13 @@ import type { WorkshopState } from "./state";
 
 export interface StatusDeps {
   env: Record<string, string | undefined>;
-  probes: { fal: () => Promise<ProbeResult>; gateway: () => Promise<ProbeResult>; miris: () => Promise<ProbeResult> };
+  probes: { fal: () => Promise<ProbeResult> };
   artifacts: { conceptCount: () => Promise<number>; glbExists: () => Promise<boolean>; loreExists: () => Promise<boolean> };
   deployment: () => Promise<{ url: string } | null>;
   state: () => Promise<WorkshopState>;
 }
 export interface WorkshopStatus {
-  keys: { fal: KeyStatus; gateway: KeyStatus; miris: KeyStatus };
+  keys: { fal: KeyStatus };
   concept: { count: number; approved: boolean };
   model: WorkshopState["model"];
   lore: { ready: boolean; status: string; error: string | null };
@@ -39,10 +39,8 @@ async function keyStatus(slot: string, value: string | undefined, probe: () => P
 }
 
 export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
-  const [fal, gw, miris, count, glb, lore, dep, state] = await Promise.all([
+  const [fal, count, glb, lore, dep, state] = await Promise.all([
     keyStatus("fal", deps.env.FAL_KEY, deps.probes.fal),
-    keyStatus("gateway", deps.env.AI_GATEWAY_API_KEY, deps.probes.gateway),
-    keyStatus("miris", deps.env.MIRIS_API_TOKEN, deps.probes.miris),
     deps.artifacts.conceptCount(),
     deps.artifacts.glbExists(),
     deps.artifacts.loreExists(),
@@ -50,7 +48,7 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
     deps.state(),
   ]);
   return {
-    keys: { fal, gateway: gw, miris },
+    keys: { fal },
     concept: { count, approved: state.approvedConceptId !== null },
     model: glb && state.model.status === "none" ? { ...state.model, status: "done" } : state.model,
     lore: { ready: lore, status: state.loreStatus.status, error: state.loreStatus.error },

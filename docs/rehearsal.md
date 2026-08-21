@@ -92,3 +92,21 @@ the app, and confirm the checklist card renders from live HTML (inspect
 #card-dom-host in devtools; hover a key row and watch the DOM update). Then
 confirm a stock browser without the flag still renders every card via the
 painted fallback. This is a talking point, not an attendee requirement.
+
+## 11. Pivot updates (2026-08-21): workflow + portal publish
+
+Earlier items about the Vercel AI Gateway, the $5 credit, and the Miris API
+token/ingest contract are superseded: lore now comes from the public fal
+workflow, and publishing is manual through the portal. Rehearse instead:
+
+- Build the workflow on the Miris fal account, make it public, and confirm
+  its output matches the contract in server/fal.ts: image_url plus a lore
+  object that passes loreSchema. Set the real id as DEFAULT_WORKFLOW_ID in
+  server/fal.ts (and in README if the slug differs).
+- Run the full flow with a fresh fal key: Sketch it must return image AND
+  lore from one workflow run; Retry lore must recover from an invalid lore.
+- Walk the portal publish path end to end as an attendee: download the GLB
+  from the app, upload at app.miris.com, wait for processing, paste the
+  asset id, then npm run deploy, and confirm the deployed viewer streams it.
+- Confirm where the asset id is displayed in the portal UI and screenshot it
+  for the slides; attendees will ask exactly where to look.

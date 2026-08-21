@@ -9,11 +9,10 @@ const key = (id: string, label: string, k: { present: boolean; valid: boolean | 
   return { id, label, state: "done" };
 };
 
-/** Where each key lives; the checklist rows link straight to them. */
+/** Where things live; the checklist rows link straight to them. */
 const DASHBOARDS = {
   "key-fal": "https://fal.ai/dashboard/keys",
-  "key-gateway": "https://vercel.com/dashboard",
-  "key-miris": "https://app.miris.com",
+  "portal": "https://app.miris.com",
 } as const;
 
 export interface ChecklistEnv { inStackBlitz?: boolean }
@@ -34,8 +33,6 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
           detail: "Forks made signed out lose your .env",
         },
         { ...key("key-fal", "fal.ai key in .env", s?.keys.fal), href: DASHBOARDS["key-fal"] },
-        { ...key("key-gateway", "Vercel AI Gateway key in .env", s?.keys.gateway), href: DASHBOARDS["key-gateway"] },
-        { ...key("key-miris", "Miris API token in .env", s?.keys.miris), href: DASHBOARDS["key-miris"] },
       ],
     },
     {
@@ -58,10 +55,12 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
     {
       title: "Publish",
       items: [
-        { id: "upload", label: "Upload to Miris", state: s?.upload.assetId ? "done" : "todo", detail: s?.upload.assetId ?? undefined },
         {
-          id: "processing", label: "Miris processing",
-          state: s?.upload.state === "ready" ? "done" : s?.upload.state === "processing" ? "doing" : s?.upload.state === "failed" ? "error" : "todo",
+          id: "asset-id",
+          label: "Upload in the Miris portal, paste the asset id",
+          state: s?.upload.assetId ? "done" : "todo",
+          detail: s?.upload.assetId ?? undefined,
+          href: DASHBOARDS["portal"],
         },
       ],
     },

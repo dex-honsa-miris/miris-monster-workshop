@@ -7,7 +7,7 @@ const IN_STACKBLITZ =
   typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
-import { fetchLore, postApprove, postConcept, postLoreRetry, postUpload } from "../pipeline-client";
+import { fetchLore, postApprove, postConcept, postLoreRetry, postAssetId } from "../pipeline-client";
 import { SceneDirector } from "../scene/director";
 import type { Concept } from "../../server/state";
 
@@ -100,9 +100,12 @@ export function App(): JSX.Element {
     });
   };
 
-  const onUpload = (): void => {
-    void run("The upload did not go through", async () => {
-      const r = await postUpload();
+  const [assetIdDraft, setAssetIdDraft] = useState("");
+  const onSaveAssetId = (): void => {
+    const id = assetIdDraft.trim();
+    if (!id) return;
+    void run("That asset id was not accepted", async () => {
+      const r = await postAssetId(id);
       setUploadedId(r.assetId);
     });
   };
@@ -202,11 +205,28 @@ export function App(): JSX.Element {
         )}
 
         {phase === "reveal" && !assetId && (
-          <div className="row">
-            <button className="btn primary" disabled={busy || !modelReady || !loreReady} onClick={onUpload}>
-              {busy ? "Uploading" : "Upload to Miris"}
-            </button>
-          </div>
+          <>
+            <p className="hint">
+              Publish it: download the model, upload it in the Miris portal under your account, then paste the asset id here.
+            </p>
+            <div className="row">
+              <a className="btn" href="/generated/monster.glb" download="monster.glb">Download monster.glb</a>
+              <a className="btn" href="https://app.miris.com" target="_blank" rel="noopener">Open the Miris portal</a>
+            </div>
+            <div className="row">
+              <input
+                className="prompt"
+                value={assetIdDraft}
+                placeholder="Paste your Miris asset id"
+                disabled={busy}
+                onChange={(e) => setAssetIdDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onSaveAssetId(); }}
+              />
+              <button className="btn primary" disabled={busy || !assetIdDraft.trim()} onClick={onSaveAssetId}>
+                {busy ? "Saving" : "Save asset id"}
+              </button>
+            </div>
+          </>
         )}
 
         {assetId && (
