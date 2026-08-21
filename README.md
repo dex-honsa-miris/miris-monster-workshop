@@ -100,8 +100,9 @@ If doctor passes but something in the app still is not working:
 - **Portal upload trouble.** The upload happens on app.miris.com in your own account, not in this app. If processing seems stuck, refresh the asset page in the portal; paste the asset id here only once the asset shows as ready.
 - **Viewing your published asset gives a 401 or looks broken.** Some Miris accounts require a `VIEWER_KEY` to read processed assets. Ask a workshop helper whether this applies to you, then set `VIEWER_KEY` in `.env` and redeploy.
 - **Deploy trouble.** `npm run deploy` only builds; publishing is the Deploy button in the bolt.new editor. If the button is missing or fails, make sure you are signed into bolt.new and that the build finished without errors in the terminal.
-- **The preview says no preview available.** The files are there but the dev server is not running, which can happen after a refresh. Open the terminal and run `npm run dev`, or ask Bolt to start the dev server. The preview reattaches once Vite is up.
+- **The preview says no preview available.** The files are there but the dev server is not running, which can happen after a refresh. Open the terminal and run `npm install && npm run dev` (a refreshed session loses installed packages, so install comes first), or ask Bolt to start the dev server. The preview reattaches once Vite is up.
 - **Bolt says you have view-only access.** You are signed out. Sign into bolt.new and fork the project; view-only mode also blocks `.env` values, so your key will not work until you do.
+- **The terminal says `command not found: vite`.** Same cause as the missing preview: the refreshed session has no installed packages. Run `npm install`, then `npm run dev`.
 - **Your fork lost its `.env` values.** This usually means the fork was made while signed out of bolt.new. Sign in, fork again, and re-enter your keys.
 
 If you are stuck on anything not covered here, ask a helper. Everyone's first monster takes a little longer than the second one.
