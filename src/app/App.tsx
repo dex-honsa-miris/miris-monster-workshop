@@ -178,7 +178,7 @@ export function App(): JSX.Element {
 
       <div className="overlay">
         {phase === "setup" && (
-          <p className="hint">Add your three keys to .env, then run npm run doctor. This panel wakes up on its own.</p>
+          <p className="hint">Add your fal key to .env and this panel wakes up on its own. Stuck? Run npm run doctor in the terminal.</p>
         )}
 
         {phase === "create" && (
