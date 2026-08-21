@@ -26,9 +26,29 @@ export function anchorFor(object: THREE.Object3D, slot: AnnotationSlot): { point
   return { point, outward: dir };
 }
 
-export function cardPositionFor(anchor: THREE.Vector3, outward: THREE.Vector3, bboxRadius: number): THREE.Vector3 {
-  const p = anchor.clone().addScaledVector(outward, Math.max(0.35, bboxRadius * 0.55));
-  p.y = Math.max(0.05, p.y);
+/** Per-slot spread so several cards never stack on the same screen spot: each
+ * slot gets its own outward push and vertical tier. Without this, 4-5
+ * annotations on one monster collided into an unreadable pile (observed with
+ * a 5-annotation storm axolotl). */
+const SLOT_SPREAD: Record<AnnotationSlot, { push: number; lift: number }> = {
+  crown: { push: 0.95, lift: 0.55 },
+  face: { push: 1.25, lift: 0.12 },
+  left: { push: 1.35, lift: -0.1 },
+  right: { push: 1.35, lift: 0.3 },
+  core: { push: 1.1, lift: -0.32 },
+  base: { push: 1.0, lift: -0.5 },
+  aura: { push: 1.2, lift: 0.7 },
+};
+
+export function cardPositionFor(
+  anchor: THREE.Vector3,
+  outward: THREE.Vector3,
+  bboxRadius: number,
+  slot: AnnotationSlot = "core",
+): THREE.Vector3 {
+  const { push, lift } = SLOT_SPREAD[slot];
+  const p = anchor.clone().addScaledVector(outward, Math.max(0.45, bboxRadius * 0.55) * push);
+  p.y = Math.max(0.05, p.y + lift);
   return p;
 }
 

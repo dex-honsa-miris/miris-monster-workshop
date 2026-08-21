@@ -317,13 +317,13 @@ export class SceneDirector {
 
     for (const a of lore.annotations) {
       const { point, outward } = anchorFor(monster, a.slot);
-      const cardWorld = placeAnnotationCard(cardPositionFor(point, outward, radius));
+      const cardWorld = placeAnnotationCard(cardPositionFor(point, outward, radius, a.slot));
       // Annotation cards ride the turntable so their leader lines stay welded
       // to the surface point they describe.
       const anchorLocal = mount.worldToLocal(point.clone());
       const cardLocal = mount.worldToLocal(cardWorld.clone());
 
-      const card = new CanvasCard(0.7, 0.4, 384);
+      const card = new CanvasCard(0.62, 0.34, 384);
       paintAnnotation(card, { label: a.label, blurb: a.blurb });
       card.mesh.position.copy(cardLocal);
 

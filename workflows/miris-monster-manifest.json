@@ -1,6 +1,5 @@
 {
   "name": "workflow",
-  "version": "1",
   "nodes": {
     "model3d": {
       "type": "run",
@@ -12,9 +11,18 @@
           "y": -260
         }
       },
-      "app": "fal-ai/trellis",
+      "app": "meshy/v7/image-to-3d",
       "input": {
-        "image_url": "$input.image_url"
+        "image_url": "$input.image_url",
+        "texture_prompt": "$input.prompt",
+        "should_texture": true,
+        "should_remesh": true,
+        "enable_pbr": false,
+        "model_type": "standard",
+        "topology": "quad",
+        "target_polycount": 24000,
+        "symmetry_mode": "auto",
+        "enable_safety_checker": true
       }
     },
     "lore": {
@@ -63,12 +71,12 @@
           "y": 240
         }
       },
-      "app": "fal-ai/flux/schnell",
+      "app": "openai/gpt-image-2",
       "input": {
         "prompt": "$iconprompt.output",
         "image_size": "square",
-        "num_images": 1,
-        "enable_safety_checker": true
+        "quality": "low",
+        "output_format": "jpeg"
       }
     },
     "output": {
@@ -87,14 +95,14 @@
       },
       "input": {},
       "fields": {
-        "model_url": "$model3d.model_mesh.url",
+        "model_url": "$model3d.model_glb.url",
         "lore": "$lore.output",
         "icon_url": "$icon.images.0.url"
       }
     }
   },
   "output": {
-    "model_url": "$model3d.model_mesh.url",
+    "model_url": "$model3d.model_glb.url",
     "lore": "$lore.output",
     "icon_url": "$icon.images.0.url"
   },
@@ -118,6 +126,7 @@
     },
     "output": {}
   },
+  "version": "1",
   "metadata": {
     "input": {
       "position": {

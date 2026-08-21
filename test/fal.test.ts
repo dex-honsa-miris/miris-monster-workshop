@@ -46,7 +46,7 @@ describe("generateConcept / generateModel", () => {
       { json: { request_id: "r", status_url: "s", response_url: "res" } },
       { json: { status: "IN_PROGRESS" } },
       { json: { status: "COMPLETED" } },
-      { json: { model_mesh: { url: "http://mesh.glb" } } },
+      { json: { model_glb: { url: "http://mesh.glb" } } },
       { buf: glb },
     ]);
     const seen: string[] = [];
@@ -81,7 +81,7 @@ describe("parseSketchOutput / parseManifestOutput", () => {
     expect(out.modelUrl).toBe("http://m.glb");
     expect(out.lore?.name).toBe("Gloamroot");
     expect(out.iconUrl).toBe("http://i.png");
-    const alt = parseManifestOutput({ model_mesh: { url: "http://m2.glb" }, details: JSON.stringify(GOOD_LORE) });
+    const alt = parseManifestOutput({ model_glb: { url: "http://m2.glb" }, details: JSON.stringify(GOOD_LORE) });
     expect(alt.modelUrl).toBe("http://m2.glb");
     expect(alt.lore?.name).toBe("Gloamroot");
     expect(alt.iconUrl).toBeNull();

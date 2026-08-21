@@ -3,8 +3,17 @@
 **BUILT AND VERIFIED 2026-08-21.** Both workflows are live and public on the
 Miris fal account, pinned as defaults in server/fal.ts:
 
-- `workflows/dexhonsa/miris-monster-sketch`
-- `workflows/dexhonsa/miris-monster-manifest`
+- `workflows/dexhonsa/miris-monster-sketch` - LLM prompt-shaper -> **openai/gpt-image-2**
+- `workflows/dexhonsa/miris-monster-manifest` - **meshy/v7/image-to-3d** + lore LLM + icon (gpt-image-2)
+
+Model choices (owner, 2026-08-21): gpt-image-2 for all image generation;
+Meshy v7 for 3D with game-asset settings: `model_type: standard`,
+`topology: quad`, `target_polycount: 24000`, `should_remesh: true`,
+`enable_pbr: FALSE` (no metallic/roughness maps, which keeps monsters matte
+per the no-shiny-attributes rule), and `texture_prompt` fed the attendee's own
+words. Measured output: single mesh, one material, metallic 0.0 / roughness
+0.8, ~4MB GLB, ~145s. Meshy's output field is `model_glb.url` (Trellis used
+`model_mesh.url`); the app's parser accepts both.
 
 Their exact graphs are versioned in `workflows/*.json` (fetched from the API,
 re-postable with PATCH). What follows documents the format and the hard-won

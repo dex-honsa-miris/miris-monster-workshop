@@ -6,7 +6,19 @@ export interface FalDeps { key: string; fetch: typeof fetch; sleep?: (ms: number
 const POLL_MS = 1500;
 const TIMEOUT_MS = 6 * 60 * 1000;
 const MODEL_IMAGE = "fal-ai/flux/schnell";
-const MODEL_3D = "fal-ai/trellis"; // bake-off may swap to fal-ai/hunyuan3d/v2
+// Meshy v7 (chosen 2026-08-21 over Trellis): game-asset topology, matte
+// output (metallic 0, roughness 0.8 measured), texture_prompt steering.
+const MODEL_3D = "meshy/v7/image-to-3d";
+const MESHY_INPUT = {
+  should_texture: true,
+  should_remesh: true,
+  enable_pbr: false, // no metallic/roughness maps: keeps monsters matte
+  model_type: "standard",
+  topology: "quad",
+  target_polycount: 24_000,
+  symmetry_mode: "auto",
+  enable_safety_checker: true,
+} as const;
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -50,10 +62,15 @@ export async function generateModel(
   imageUrl: string,
   deps: FalDeps,
   onProgress?: (p: { status: string }) => void,
+  userText = "",
 ): Promise<{ glb: ArrayBuffer }> {
-  const out = (await falQueue(MODEL_3D, { image_url: imageUrl }, deps, onProgress)) as { model_mesh: { url: string } };
-  if (!out.model_mesh?.url) throw new Error("fal returned no mesh");
-  const dl = await deps.fetch(out.model_mesh.url, { headers: { Authorization: `Key ${deps.key}` } });
+  const out = (await falQueue(MODEL_3D, { image_url: imageUrl, texture_prompt: userText, ...MESHY_INPUT }, deps, onProgress)) as {
+    model_glb?: { url?: string };
+    model_mesh?: { url?: string };
+  };
+  const meshUrl = out.model_glb?.url ?? out.model_mesh?.url;
+  if (!meshUrl) throw new Error("fal returned no mesh");
+  const dl = await deps.fetch(meshUrl, { headers: { Authorization: `Key ${deps.key}` } });
   if (!dl.ok) throw new Error(`mesh download failed: ${dl.status}`);
   return { glb: await dl.arrayBuffer() };
 }
@@ -98,9 +115,10 @@ export function parseManifestOutput(raw: unknown): { modelUrl: string; lore: Mon
   const o = (raw ?? {}) as Record<string, unknown>;
   const modelUrl =
     (typeof o.model_url === "string" && o.model_url) ||
-    ((o.model_mesh as { url?: string } | undefined)?.url ?? null) ||
+    ((o.model_glb as { url?: string } | undefined)?.url ?? null) || // meshy v7
+    ((o.model_mesh as { url?: string } | undefined)?.url ?? null) || // trellis
     ((o.model as { url?: string } | undefined)?.url ?? null);
-  if (!modelUrl) throw new Error("workflow returned no model (expected model_url, model_mesh.url, or model.url)");
+  if (!modelUrl) throw new Error("workflow returned no model (expected model_url, model_glb.url, model_mesh.url, or model.url)");
   let lore: MonsterLore | null = null;
   for (const key of ["lore", "details", "monster"]) {
     const parsed = loreSchema.safeParse(typeof o[key] === "string" ? tryJson(o[key] as string) : o[key]);

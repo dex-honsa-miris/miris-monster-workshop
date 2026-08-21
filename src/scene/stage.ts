@@ -15,10 +15,17 @@ export class SceneStage {
     this.camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 50);
     this.camera.position.set(0, 1.4, 4.2);
     this.camera.lookAt(0, 1.0, 0);
-    this.scene.add(new THREE.HemisphereLight(0xdfe2ea, 0x0a0b0f, 0.7));
-    const key = new THREE.SpotLight(0xf4f5f8, 60, 12, 0.7, 0.5);
+    this.scene.add(new THREE.HemisphereLight(0xdfe2ea, 0x14161c, 1.5));
+    const key = new THREE.SpotLight(0xf4f5f8, 90, 14, 0.8, 0.5);
     key.position.set(2.5, 4.5, 2.5);
-    this.scene.add(key);
+    // Fill + rim so a textured mesh reads from the front and separates from
+    // the near-black ground (Meshy monsters rendered nearly silhouetted with
+    // a single key light).
+    const fill = new THREE.DirectionalLight(0xdfe4ef, 1.4);
+    fill.position.set(-2.5, 2.2, 3.2);
+    const rim = new THREE.DirectionalLight(0xaab2c4, 0.8);
+    rim.position.set(0, 2.5, -3.5);
+    this.scene.add(key, fill, rim);
     addEventListener("resize", this.#onResize);
   }
   #onResize = (): void => {
