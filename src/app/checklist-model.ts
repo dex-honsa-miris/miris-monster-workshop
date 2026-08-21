@@ -67,7 +67,7 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
     {
       title: "Deploy",
       items: [
-        { id: "deploy", label: "Deploy your viewer (npm run deploy)", state: s?.deployment.url ? "done" : "todo", detail: s?.deployment.url ?? undefined },
+        { id: "deploy", label: "npm run deploy, then press Deploy in Bolt", state: s?.deployment.url ? "done" : "todo", detail: s?.deployment.url ?? undefined },
       ],
     },
   ];

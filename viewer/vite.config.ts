@@ -50,7 +50,7 @@ export default defineConfig({
   // Vite's default browser target rejects outright.
   build: {
     target: "es2022",
-    outDir: join(HERE, "..", "dist-viewer"),
+    outDir: join(HERE, "..", "dist"),
     emptyOutDir: true,
   },
   esbuild: { target: "es2022" },

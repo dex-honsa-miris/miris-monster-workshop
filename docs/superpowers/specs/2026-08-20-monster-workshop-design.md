@@ -201,3 +201,13 @@ misbehaves in the WebContainer, falls back to Vercel's REST deploy API with
    (POST /api/asset-id). server/miris.ts, MIRIS_API_TOKEN, and the probe are
    removed. A "login with Miris" OAuth flow remains a possible upgrade if
    client credentials materialize; it is not built.
+
+3. (2026-08-21) bolt.new replaces both StackBlitz classic and Vercel
+   (supersedes decision 2's editor and the deploy half of the plan): the
+   workshop runs in bolt.new, and the viewer ships through Bolt's Deploy
+   button. npm run deploy now bakes the asset id and builds the viewer as
+   the project's build output (dist/); the attendee presses Deploy and
+   pastes the live link back (POST /api/deployed-url writes
+   deployment.json, which the checklist already watched). The vercel
+   devDependency, CLI path, REST fallback, collectFiles, and VERCEL_TOKEN
+   are removed.

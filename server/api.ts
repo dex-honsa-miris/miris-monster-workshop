@@ -9,6 +9,7 @@ import { probeFal } from "./probes";
 import { patchState, readState, workshopDir } from "./state";
 import { buildStatus } from "./status";
 import { parseLore, type MonsterLore } from "./lore-schema";
+import { deploymentRecord } from "./deploy-core";
 
 type Handler = (body: Record<string, unknown>) => Promise<{ status: number; json: unknown }>;
 
@@ -116,6 +117,19 @@ const routes: Record<string, Handler> = {
       }
     })().catch((e) => console.warn("[workshop] background task failed:", e));
     return { status: 202, json: { started: true } };
+  },
+
+  // After pressing Deploy in bolt.new, the attendee pastes the live link so
+  // the checklist can complete (Bolt's deploy is a UI action; there is no
+  // programmatic way to learn the URL from inside the container).
+  "POST /api/deployed-url": async (body) => {
+    const url = String(body.url ?? "").trim();
+    if (!/^https:\/\/[^\s]+\.[a-z]{2,}([\/?#][^\s]*)?$/i.test(url)) {
+      return { status: 400, json: { error: "that does not look like a URL", hint: "Paste the https link Bolt shows after Deploy finishes." } };
+    }
+    await mkdir(workshopDir(), { recursive: true });
+    await writeFile(deployFile(), deploymentRecord(url));
+    return { status: 200, json: { url } };
   },
 
   // Publish is manual: the attendee downloads the GLB, uploads it in the

@@ -10,9 +10,9 @@ import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 const SRC = join(process.cwd(), "node_modules", "@miris-inc", "core", "dist");
-const OUT = join(process.cwd(), "dist-viewer", "assets");
+const OUT = join(process.cwd(), "dist", "assets");
 mkdirSync(OUT, { recursive: true });
 for (const f of ["AquaApi.js", "AquaApi.wasm", "aqua-parser.js", "aqua-parser.wasm"]) {
   copyFileSync(join(SRC, f), join(OUT, f));
-  console.log(`[copy-engine] ${f} -> dist-viewer/assets/`);
+  console.log(`[copy-engine] ${f} -> dist/assets/`);
 }

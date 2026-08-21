@@ -7,7 +7,7 @@ const IN_STACKBLITZ =
   typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
-import { fetchLore, postApprove, postConcept, postLoreRetry, postAssetId } from "../pipeline-client";
+import { fetchLore, postApprove, postConcept, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import { SceneDirector } from "../scene/director";
 import type { Concept } from "../../server/state";
 
@@ -101,6 +101,15 @@ export function App(): JSX.Element {
   };
 
   const [assetIdDraft, setAssetIdDraft] = useState("");
+  const [liveUrlDraft, setLiveUrlDraft] = useState("");
+  const deployedUrl = status?.deployment.url ?? null;
+  const onSaveLiveUrl = (): void => {
+    const url = liveUrlDraft.trim();
+    if (!url) return;
+    void run("That link was not accepted", async () => {
+      await postDeployedUrl(url);
+    });
+  };
   const onSaveAssetId = (): void => {
     const id = assetIdDraft.trim();
     if (!id) return;
@@ -229,13 +238,36 @@ export function App(): JSX.Element {
           </>
         )}
 
-        {assetId && (
+        {assetId && !deployedUrl && (
+          <>
+            <div className="banner">
+              <span className="banner-label">Asset</span>
+              <code>{assetId}</code>
+              <span>is with Miris. Run</span>
+              <code>npm run deploy</code>
+              <span>in the terminal, then press Deploy in bolt.new.</span>
+            </div>
+            <div className="row">
+              <input
+                className="prompt"
+                value={liveUrlDraft}
+                placeholder="Paste your live link from Bolt"
+                disabled={busy}
+                onChange={(e) => setLiveUrlDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onSaveLiveUrl(); }}
+              />
+              <button className="btn primary" disabled={busy || !liveUrlDraft.trim()} onClick={onSaveLiveUrl}>
+                {busy ? "Saving" : "Save link"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {assetId && deployedUrl && (
           <div className="banner">
-            <span className="banner-label">Asset</span>
-            <code>{assetId}</code>
-            <span>is with Miris. Last step: run</span>
-            <code>npm run deploy</code>
-            <span>in the terminal.</span>
+            <span className="banner-label">Live</span>
+            <span>Your monster is on the internet:</span>
+            <a href={deployedUrl} target="_blank" rel="noopener"><code>{deployedUrl}</code></a>
           </div>
         )}
       </div>

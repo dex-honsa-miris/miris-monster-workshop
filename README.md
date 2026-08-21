@@ -2,11 +2,11 @@
 
 Welcome. In this workshop you will describe a monster in a sentence or two, watch it get sketched and sculpted in 3D by AI, give it a name and a bit of lore, and then publish it to your own live web page that you can share with anyone.
 
-Everything runs inside a StackBlitz fork in your browser. You do not need to install anything locally.
+Everything runs inside a bolt.new fork in your browser. You do not need to install anything locally.
 
-## Step zero: sign into StackBlitz
+## Step zero: sign into bolt.new
 
-Before you fork this project, sign into StackBlitz. If you fork while signed out, your fork will not save your `.env` file, and you will lose your keys the moment you close the tab. Sign in first, then fork.
+Before you fork this project, sign into bolt.new. If you fork while signed out, your fork will not save your `.env` file, and you will lose your keys the moment you close the tab. Sign in first, then fork.
 
 ## Get set up
 
@@ -65,28 +65,21 @@ The checklist ticks itself once the id is saved.
 
 ## Deploy
 
-The last step is deploying your own shareable viewer page. Run:
+Your monster gets its own page, hosted by Bolt:
 
-```
-npm run deploy
-```
+1. In the terminal, run `npm run deploy`. This bakes your asset id and lore
+   into the viewer and builds it as the project's build output.
+2. Press Deploy in the bolt.new editor and wait for your live link.
+3. Paste the link into the app. The checklist ticks itself, and your monster
+   is on the internet.
 
-This bakes your monster's asset id and lore into a small standalone viewer, builds it, and deploys it to Vercel. If you have already logged into the Vercel CLI, it deploys directly. If the CLI path fails for any reason, and you have set `VERCEL_TOKEN` in your `.env`, the script automatically falls back to deploying over the Vercel REST API instead.
-
-When it finishes, you will get a `https://something.vercel.app` link. That page is yours to share.
-
-If you ever need to redeploy an asset without going through the app again, you can pass an asset id directly:
-
-```
-npm run deploy -- asset_id
-```
 
 ## Command reference
 
 - `npm run dev`: starts the workshop app itself.
-- `npm run doctor`: checks that all your keys are present and valid.
+- `npm run doctor`: checks that your fal key is present and valid.
 - `npm run generate -- "prompt"`: runs the concept and 3D pipeline from the terminal, skipping the app.
-- `npm run deploy [-- asset_id]`: bakes, builds, and deploys your viewer.
+- `npm run deploy [-- asset_id]`: bakes your asset id into the viewer and builds it; then press Deploy in bolt.new.
 - `npm run build:viewer`: builds the standalone viewer without deploying it.
 - `npm run dev:viewer`: runs the standalone viewer locally so you can preview it before deploying.
 
@@ -106,8 +99,8 @@ If doctor passes but something in the app still is not working:
 - **The 3D summon seems stuck.** It can genuinely take a couple of minutes. If it has been much longer than that, refresh the app; the pipeline will pick up where it left off rather than starting over.
 - **Portal upload trouble.** The upload happens on app.miris.com in your own account, not in this app. If processing seems stuck, refresh the asset page in the portal; paste the asset id here only once the asset shows as ready.
 - **Viewing your published asset gives a 401 or looks broken.** Some Miris accounts require a `VIEWER_KEY` to read processed assets. Ask a workshop helper whether this applies to you, then set `VIEWER_KEY` in `.env` and redeploy.
-- **The deploy fails with no Vercel session.** Either run `npx vercel login` inside your StackBlitz terminal and deploy again, or set `VERCEL_TOKEN` in `.env` from your Vercel dashboard under Settings, Tokens, and run `npm run deploy` again. The script will use whichever path works.
-- **Your fork lost its `.env` values.** This usually means the fork was made while signed out of StackBlitz. Sign in, fork again, and re-enter your keys.
+- **Deploy trouble.** `npm run deploy` only builds; publishing is the Deploy button in the bolt.new editor. If the button is missing or fails, make sure you are signed into bolt.new and that the build finished without errors in the terminal.
+- **Your fork lost its `.env` values.** This usually means the fork was made while signed out of bolt.new. Sign in, fork again, and re-enter your keys.
 
 If you are stuck on anything not covered here, ask a helper. Everyone's first monster takes a little longer than the second one.
 

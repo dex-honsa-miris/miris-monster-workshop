@@ -110,3 +110,21 @@ workflow, and publishing is manual through the portal. Rehearse instead:
   asset id, then npm run deploy, and confirm the deployed viewer streams it.
 - Confirm where the asset id is displayed in the portal UI and screenshot it
   for the slides; attendees will ask exactly where to look.
+
+## 12. Pivot update (2026-08-21): bolt.new runs the workshop and hosts the viewer
+
+Supersedes every Vercel item (CLI in the WebContainer, VERCEL_TOKEN REST
+fallback, $5 credit) and moves the attendee entry link to
+bolt.new/~/github.com/dex-honsa-miris/miris-monster-workshop. Rehearse:
+
+- Fresh fork in bolt.new from the published link: install, auto-start, the
+  full flow. Confirm the WebContainer detection still checks item zero.
+- npm run deploy, then Bolt's Deploy button: confirm the published site is
+  the VIEWER (the build output is dist/ from viewer/vite.config.ts), the
+  engine wasm files are present, and the pasted bolt.host link completes the
+  checklist.
+- Confirm Bolt's fork/sign-in persistence story for .env matches the README
+  warning, and update the wording if Bolt behaves differently.
+- Watch out for Bolt's AI assistant: attendees may ask it to "fix" the
+  project mid-workshop. Decide the guidance (ignore it, or embrace it) and
+  put one line about it in the intro slide.

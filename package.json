@@ -11,7 +11,8 @@
     "generate": "tsx scripts/generate.ts",
     "deploy": "tsx scripts/deploy.ts",
     "dev:viewer": "vite --config viewer/vite.config.ts",
-    "build:viewer": "vite build --config viewer/vite.config.ts && tsx scripts/copy-engine.ts"
+    "build:viewer": "vite build --config viewer/vite.config.ts && tsx scripts/copy-engine.ts",
+    "build": "npm run build:viewer"
   },
   "dependencies": {
     "@miris-inc/core": "0.0.8-dc2d7ec",
@@ -30,7 +31,6 @@
     "dotenv": "^16.4.5",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
-    "vercel": "^59.3.0",
     "vite": "^6.0.0",
     "vitest": "^2.0.0"
   }
