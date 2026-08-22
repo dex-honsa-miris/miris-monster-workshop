@@ -14,6 +14,9 @@ export const fetchStatus = (): Promise<WorkshopStatus> => call("/api/status");
 export const postConcept = (prompt: string): Promise<Concept> => call("/api/concept", post({ prompt }));
 export const postApprove = (conceptId: string): Promise<{ started: boolean }> => call("/api/approve", post({ conceptId }));
 export const postAssetId = (assetId: string): Promise<{ assetId: string }> => call("/api/asset-id", post({ assetId }));
+export const postAnnotate = (payload: { closeup: string; context: string; point: [number, number, number] }): Promise<{
+  id: string; label: string; blurb: string; slot: string; seen: string; point: [number, number, number];
+}> => call("/api/annotate", post(payload));
 export const postDeployedUrl = (url: string): Promise<{ url: string }> => call("/api/deployed-url", post({ url }));
 export const postLoreRetry = (): Promise<{ started: boolean }> => call("/api/lore/retry", post({}));
 export const fetchLore = async (): Promise<MonsterLore | null> => {

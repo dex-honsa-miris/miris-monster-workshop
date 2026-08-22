@@ -13,6 +13,7 @@ export interface WorkshopStatus {
   concept: { count: number; approved: boolean };
   model: WorkshopState["model"];
   lore: { ready: boolean; status: string; error: string | null };
+  discoveries: WorkshopState["discoveries"];
   upload: WorkshopState["upload"];
   deployment: { url: string | null };
 }
@@ -52,6 +53,7 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
     concept: { count, approved: state.approvedConceptId !== null },
     model: glb && state.model.status === "none" ? { ...state.model, status: "done" } : state.model,
     lore: { ready: lore, status: state.loreStatus.status, error: state.loreStatus.error },
+    discoveries: state.discoveries,
     upload: state.upload,
     deployment: { url: dep?.url ?? null },
   };

@@ -51,6 +51,15 @@ npm run generate -- "a moss golem with lantern eyes"
 
 This writes `monster.glb` and `lore.json` to your workshop directory without touching the browser app.
 
+## Examine your monster
+
+On the reveal, click any part of your monster. The app renders a closeup of
+exactly where you clicked plus a full-body shot, sends both to a vision model
+along with your monster's identity, and pins a new annotation card on that
+spot: a name and a codex line for that specific feature. Click its eyes, its
+tail, the thing on its back. Each discovery is saved, so they are still there
+after a reload.
+
 ## Publish
 
 Publishing is a trip through the Miris portal, in your own account:

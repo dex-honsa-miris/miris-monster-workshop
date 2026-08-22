@@ -142,3 +142,25 @@ The lore is the attendee's keepsake, so it gets the better model; the 3 extra
 seconds hide inside the ~145s Meshy wait. The shaper runs on every reroll, so
 it stays cheap. Both models fence their JSON in markdown, which the app's
 parser strips.
+
+## Click to annotate (vision, direct call not a workflow)
+
+`POST /api/annotate` sends TWO data-URI images to `fal-ai/any-llm/vision`
+(anthropic/claude-haiku-4.5): a closeup framed on the clicked point and a
+full-body context shot. Data URIs work directly, so no upload step is needed.
+
+Two failure modes found while building it (2026-08-21), both fixed and worth
+knowing if the prompt is ever edited:
+
+1. **Coordinate pointing does not work.** Telling the model "the player
+   clicked x=0.5, y=0.30" produced disagreement between models on the same
+   image ("head with vegetation" vs "back spikes"). The click is communicated
+   by FRAMING instead: whatever fills the center of the closeup is the answer.
+2. **Lore text overrides the image.** With the lore in the prompt, a closeup
+   of the monster's FEET came back as "Stone Shield" because the lore
+   mentioned a shield. The prompt now demands a `seen` field first (what the
+   model literally observes), forbids naming anything not visible, and passes
+   lore as identity and tone only, never as a feature list.
+
+Model prose is normalized by `prose()` in server/lore-schema.ts: LLMs reach
+for em dashes constantly and this copy renders straight into the UI.

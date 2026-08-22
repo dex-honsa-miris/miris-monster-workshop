@@ -33,3 +33,26 @@ describe("parseLore", () => {
     expect(() => parseLore({ ...VALID, element: "plasma" })).toThrow();
   });
 });
+
+describe("prose normalization", () => {
+  it("replaces em and en dashes in every model-written field", () => {
+    const doc = parseLore({
+      ...VALID,
+      name: "Brew\u2014steeple",
+      lore: "A stance\u2014gains resolve\u2013always",
+      abilities: [
+        { name: "Steep\u2014Patience", blurb: "Defensive stance\u2014gains resolve" },
+        { name: "Fog", blurb: "Mist\u2013thick and warm" },
+      ],
+      annotations: [
+        { slot: "crown", label: "Tea\u2014Lid", blurb: "Simmering\u2014just right" },
+        { slot: "face", label: "Frown", blurb: "Displeased" },
+        { slot: "base", label: "Shell", blurb: "Sturdy" },
+      ],
+    });
+    const all = JSON.stringify(doc);
+    expect(all).not.toMatch(/[\u2014\u2013]/);
+    expect(doc.name).toBe("Brew - steeple");
+    expect(doc.abilities[0]!.blurb).toContain(" - gains resolve");
+  });
+});

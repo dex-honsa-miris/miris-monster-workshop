@@ -7,6 +7,7 @@ const BASE: WorkshopStatus = {
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },
   lore: { ready: false, status: "none", error: null },
+  discoveries: [],
   loreStatus: undefined as never,
   upload: { glbSha: null, assetId: null, state: "none", error: null },
   deployment: { url: null },

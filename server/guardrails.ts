@@ -57,3 +57,31 @@ Reply with ONLY a JSON object, no markdown fences, matching exactly:
   "abilities": [2-3 of { "name": "<= 3 words", "blurb": "<= 12 words" }],
   "annotations": [3-5 of { "slot": one of ["crown","face","left","right","core","base","aura"], "label": "<= 4 words", "blurb": "<= 12 words" }]
 }`;
+
+/** System prompt for click-to-annotate (vision). Two images are sent: a
+ * closeup framed on the clicked point, and a full-body context shot.
+ *
+ * The two-step "seen" field is load-bearing: without it the model ignored the
+ * image and simply restated a feature from the lore (measured 2026-08-21 --
+ * a closeup of the monster's feet came back as "Stone Shield" because the
+ * lore mentioned a shield). Naming what it sees first grounds the annotation
+ * in the render. Lore is passed as identity and TONE only, never as a
+ * feature list, for the same reason. */
+export const ANNOTATE_SYSTEM_PROMPT = `You annotate the part of a creature a player just clicked.
+Image 1 is a CLOSEUP framed on the clicked part. Image 2 is the whole creature, for context.
+Work in two steps and report both:
+1. "seen": literally what body part fills the center of image 1 (your own eyes only; ignore any lore).
+2. "label"/"blurb": the annotation for THAT part.
+Rules: describe only what you can actually see. Never name a part that is not visible, even if the lore mentions it. Match the creature's tone and world, but do not copy its existing features. The blurb should feel like a game codex entry: concrete, vivid, a little playful.
+Reply with ONLY JSON: {"seen":"<= 8 words","label":"<= 4 words","blurb":"<= 24 words","slot":"crown|face|left|right|core|base|aura"}`;
+
+/** Identity+tone line for the annotate call. Deliberately excludes the lore's
+ * own annotations so the model cannot parrot them. */
+export function annotateIdentity(lore: {
+  name: string;
+  epithet: string;
+  element: string;
+  lore: string;
+}): string {
+  return `Name: ${lore.name} ${lore.epithet}. Element: ${lore.element}. World and tone: ${lore.lore}`;
+}

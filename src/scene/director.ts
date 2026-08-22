@@ -16,6 +16,7 @@ export interface ConceptView {
 }
 
 const LEADER = 0x82838a;
+const DISCOVERED = 0xff3500; // player-found annotations get the accent leader
 const MESSAGE_BODY_MAX = 240;
 
 /**
@@ -51,6 +52,9 @@ export class SceneDirector {
   #conceptToken = 0;
 
   readonly #scratch = new THREE.Quaternion();
+  #probeTarget: THREE.WebGLRenderTarget | null = null;
+  #probeCamera = new THREE.PerspectiveCamera(32, 1, 0.01, 40);
+  #probing = false;
 
   constructor(container: HTMLElement) {
     this.#stage = new SceneStage(container);
@@ -154,6 +158,123 @@ export class SceneDirector {
     this.#applyVisibility();
   }
 
+  /** Resolves once a monster mesh is on the pedestal (or immediately if it
+   * already is). Lets the app restore saved discoveries without racing the
+   * GLB load. */
+  async whenRevealed(): Promise<void> {
+    if (this.#monster) return;
+    if (this.#loading) { await this.#loading; return; }
+    for (let i = 0; i < 200 && !this.#monster && !this.#disposed; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  /** Raycast the monster under the pointer. Returns the world hit point, or
+   * null when the pointer is not on the monster. */
+  monsterPointAt(clientX: number, clientY: number): THREE.Vector3 | null {
+    const monster = this.#monster;
+    if (!monster || this.#phase !== "reveal") return null;
+    const el = this.#stage.renderer.domElement;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    this.#ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.#raycaster.setFromCamera(this.#ndc, this.#stage.camera);
+    return this.#raycaster.intersectObject(monster, true)[0]?.point.clone() ?? null;
+  }
+
+  /** Renders the two images the annotate call needs: a closeup framed on the
+   * clicked point (the model identifies whatever fills the center) and a
+   * full-body context shot. Cards, lines and the ritual are hidden for both
+   * renders so only the creature is in frame. */
+  captureProbe(point: THREE.Vector3): { closeup: string; context: string } | null {
+    const monster = this.#monster;
+    const renderer = this.#stage.renderer;
+    if (!monster || this.#probing) return null;
+    this.#probing = true;
+    const hidden: THREE.Object3D[] = [this.#ritual.group, this.#checklist.mesh, this.#stats.mesh, this.#concept.mesh, this.#message.mesh];
+    for (const a of this.#annotations) hidden.push(a.card.mesh, a.line);
+    const wasVisible = hidden.map((o) => o.visible);
+    hidden.forEach((o) => { o.visible = false; });
+    const prevTarget = renderer.getRenderTarget();
+    try {
+      this.#probeTarget ??= new THREE.WebGLRenderTarget(512, 512);
+      const box = new THREE.Box3().setFromObject(monster);
+      const radius = Math.max(0.001, box.getSize(new THREE.Vector3()).length() / 2);
+      const center = box.getCenter(new THREE.Vector3());
+      const cam = this.#probeCamera;
+
+      // Closeup: sit off the clicked point along the direction away from the
+      // monster's center, so the clicked surface faces the camera.
+      const outward = point.clone().sub(center).normalize();
+      if (!Number.isFinite(outward.x) || outward.lengthSq() < 1e-6) outward.set(0, 0, 1);
+      cam.position.copy(point).addScaledVector(outward, radius * 0.85);
+      cam.lookAt(point);
+      cam.updateProjectionMatrix();
+      const closeup = this.#renderProbe();
+
+      // Context: the whole creature from the app camera's side.
+      const dir = this.#stage.camera.position.clone().sub(center).normalize();
+      cam.position.copy(center).addScaledVector(dir, radius * 3.4);
+      cam.lookAt(center);
+      cam.updateProjectionMatrix();
+      const context = this.#renderProbe();
+      return { closeup, context };
+    } catch (e) {
+      console.warn("[workshop] probe capture failed:", e);
+      return null;
+    } finally {
+      renderer.setRenderTarget(prevTarget);
+      hidden.forEach((o, i) => { o.visible = wasVisible[i] ?? true; });
+      this.#probing = false;
+    }
+  }
+
+  #renderProbe(): string {
+    const renderer = this.#stage.renderer;
+    const target = this.#probeTarget!;
+    renderer.setRenderTarget(target);
+    renderer.render(this.#stage.scene, this.#probeCamera);
+    const pixels = new Uint8Array(target.width * target.height * 4);
+    renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, pixels);
+    const canvas = document.createElement("canvas");
+    canvas.width = target.width;
+    canvas.height = target.height;
+    const ctx = canvas.getContext("2d")!;
+    const img = ctx.createImageData(target.width, target.height);
+    // GL reads bottom-up; flip into image order.
+    for (let y = 0; y < target.height; y++) {
+      const src = (target.height - 1 - y) * target.width * 4;
+      img.data.set(pixels.subarray(src, src + target.width * 4), y * target.width * 4);
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  }
+
+  /** Adds a discovered annotation card at an exact world point. */
+  addDiscovery(d: { label: string; blurb: string }, worldPoint: THREE.Vector3): void {
+    const monster = this.#monster;
+    if (!monster) return;
+    const mount = this.#pedestal.mount;
+    const box = new THREE.Box3().setFromObject(monster);
+    const radius = box.getSize(new THREE.Vector3()).length() / 2;
+    const outward = worldPoint.clone().sub(box.getCenter(new THREE.Vector3())).normalize();
+    if (outward.lengthSq() < 1e-6) outward.set(0, 0, 1);
+    const cardWorld = placeAnnotationCard(worldPoint.clone().addScaledVector(outward, Math.max(0.4, radius * 0.5)));
+    const anchorLocal = mount.worldToLocal(worldPoint.clone());
+    const cardLocal = mount.worldToLocal(cardWorld);
+    const card = new CanvasCard(0.62, 0.34, 384);
+    paintAnnotation(card, d);
+    card.mesh.position.copy(cardLocal);
+    const tip = cardLocal.clone().lerp(anchorLocal, 0.22);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([anchorLocal, tip]),
+      new THREE.LineBasicMaterial({ color: DISCOVERED, transparent: true, opacity: 0.85 }),
+    );
+    mount.add(card.mesh, line);
+    this.#annotations.push({ card, line });
+    this.#applyVisibility();
+  }
+
   applyOrbitDelta(dx: number): void {
     this.#pedestal.mount.rotation.y += dx * 0.006;
   }
@@ -178,6 +299,7 @@ export class SceneDirector {
     this.#clearAnnotations();
     this.#disposeMonster();
     for (const card of [this.#checklist, this.#concept, this.#stats, this.#message]) card.dispose();
+    this.#probeTarget?.dispose();
     this.#ritual.dispose();
     this.#pedestal.dispose();
     this.#stage.dispose();

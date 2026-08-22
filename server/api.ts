@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
-import { generateLoreLLM, manifestMonster, MANIFEST_WORKFLOW, sketchMonster, SKETCH_WORKFLOW } from "./fal";
+import { annotateFeature, generateLoreLLM, manifestMonster, MANIFEST_WORKFLOW, sketchMonster, SKETCH_WORKFLOW } from "./fal";
 import { probeFal } from "./probes";
 import { patchState, readState, workshopDir } from "./state";
 import { buildStatus } from "./status";
@@ -130,6 +130,34 @@ const routes: Record<string, Handler> = {
     return { status: 202, json: { started: true } };
   },
 
+  // Click to annotate: the browser sends a rendered closeup of the clicked
+  // point plus a full-body context shot; vision names the part and writes its
+  // codex entry. Discoveries are persisted so a reload keeps them.
+  "POST /api/annotate": async (body) => {
+    if (!existsSync(loreFile())) {
+      return { status: 409, json: { error: "no lore yet", hint: "Summon your monster first, then click it." } };
+    }
+    const closeup = String(body.closeup ?? "");
+    const context = String(body.context ?? "");
+    if (!closeup.startsWith("data:image/") || !context.startsWith("data:image/")) {
+      return { status: 400, json: { error: "missing render", hint: "The app could not capture the click. Try clicking the monster again." } };
+    }
+    const lore = parseLore(JSON.parse(await readFile(loreFile(), "utf8")));
+    const found = await annotateFeature({ closeup, context, lore }, { key: env().FAL_KEY!, fetch });
+    const point = Array.isArray(body.point) ? (body.point as number[]).slice(0, 3) : [0, 0, 0];
+    const entry = {
+      id: `d${Date.now()}`,
+      label: found.label,
+      blurb: found.blurb,
+      slot: found.slot,
+      seen: found.seen,
+      point: [point[0] ?? 0, point[1] ?? 0, point[2] ?? 0] as [number, number, number],
+    };
+    const st = await readState();
+    await patchState({ discoveries: [...st.discoveries, entry] });
+    return { status: 200, json: entry };
+  },
+
   // After pressing Deploy in bolt.new, the attendee pastes the live link so
   // the checklist can complete (Bolt's deploy is a UI action; there is no
   // programmatic way to learn the URL from inside the container).
@@ -168,7 +196,8 @@ export function workshopApi(): Plugin {
           const chunks: Buffer[] = [];
           for await (const c of req) chunks.push(c as Buffer);
           const raw = Buffer.concat(chunks);
-          if (raw.length > 10_240) { res.statusCode = 413; res.end("{}"); return; }
+          // Rendered closeups are base64 images, far past the old 10KB cap.
+          if (raw.length > 4_000_000) { res.statusCode = 413; res.end(JSON.stringify({ error: "payload too large", hint: "Try clicking again." })); return; }
           try { body = raw.length ? JSON.parse(raw.toString("utf8")) : {}; } catch { body = {}; }
         }
         try {

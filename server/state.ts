@@ -2,11 +2,23 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface Concept { id: string; prompt: string; imageUrl: string; createdAt: string }
+/** A click-to-annotate discovery, with the local-space point on the mount so
+ * the card can be restored exactly where the player clicked. */
+export interface StoredDiscovery {
+  id: string;
+  label: string;
+  blurb: string;
+  slot: string;
+  seen: string;
+  point: [number, number, number];
+}
+
 export interface WorkshopState {
   concepts: Concept[];
   approvedConceptId: string | null;
   model: { status: "none" | "running" | "done" | "failed"; glbPath: string | null; error: string | null };
   lore: unknown | null;
+  discoveries: StoredDiscovery[];
   loreStatus: { status: "none" | "running" | "done" | "failed"; error: string | null };
   upload: { glbSha: string | null; assetId: string | null; state: "none" | "uploading" | "processing" | "ready" | "failed"; error: string | null };
 }
@@ -20,6 +32,7 @@ export function defaultState(): WorkshopState {
     approvedConceptId: null,
     model: { status: "none", glbPath: null, error: null },
     lore: null,
+    discoveries: [],
     loreStatus: { status: "none", error: null },
     upload: { glbSha: null, assetId: null, state: "none", error: null },
   };

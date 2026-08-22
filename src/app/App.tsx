@@ -7,7 +7,7 @@ const IN_STACKBLITZ =
   typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
-import { fetchLore, postApprove, postConcept, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
+import { fetchLore, postAnnotate, postApprove, postConcept, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import { SceneDirector } from "../scene/director";
 import type { Concept } from "../../server/state";
 
@@ -148,10 +148,37 @@ export function App(): JSX.Element {
     directorRef.current?.applyOrbitDelta(e.clientX - dragRef.current);
     dragRef.current = e.clientX;
   };
+  const [probing, setProbing] = useState(false);
+  /** Click the monster itself: render the clicked spot, let vision name it,
+   * and pin the annotation card there. */
+  const probeMonster = (clientX: number, clientY: number): void => {
+    const d = directorRef.current;
+    if (!d || probing) return;
+    const point = d.monsterPointAt(clientX, clientY);
+    if (!point) return;
+    const shots = d.captureProbe(point);
+    if (!shots) return;
+    setProbing(true);
+    void (async () => {
+      try {
+        const found = await postAnnotate({ ...shots, point: [point.x, point.y, point.z] });
+        d.addDiscovery({ label: found.label, blurb: found.blurb }, point);
+      } catch (err) {
+        setNote({ title: "That part stayed a mystery", body: err instanceof Error ? err.message : String(err) });
+      } finally {
+        setProbing(false);
+      }
+    })();
+  };
+
   const endDrag = (e?: ReactPointerEvent<HTMLDivElement>): void => {
-    // A press that never really moved is a tap; the scene may consume it
-    // (checklist rows open their dashboards).
-    if (e && dragRef.current !== null && movedRef.current < 6) directorRef.current?.tap(e.clientX, e.clientY);
+    // A press that never really moved is a tap: the scene may consume it
+    // (checklist rows open dashboards), otherwise a tap on the monster asks
+    // the AI what that part is.
+    if (e && dragRef.current !== null && movedRef.current < 6) {
+      const consumed = directorRef.current?.tap(e.clientX, e.clientY) ?? false;
+      if (!consumed) probeMonster(e.clientX, e.clientY);
+    }
     dragRef.current = null;
   };
 
@@ -218,6 +245,12 @@ export function App(): JSX.Element {
             <p className="hint">The lore did not come through.</p>
             <button className="btn" disabled={busy} onClick={onRetryLore}>Retry lore</button>
           </div>
+        )}
+
+        {phase === "reveal" && (
+          <p className="hint">
+            {probing ? "Looking closely at that part..." : "Click any part of your monster to have it examined and annotated."}
+          </p>
         )}
 
         {phase === "reveal" && !assetId && (

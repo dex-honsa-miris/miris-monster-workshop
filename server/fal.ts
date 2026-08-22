@@ -1,5 +1,5 @@
-import { buildConceptPrompt, buildIconPrompt, LORE_SYSTEM_PROMPT, sanitizeUserPrompt } from "./guardrails";
-import { loreSchema, type MonsterLore } from "./lore-schema";
+import { ANNOTATE_SYSTEM_PROMPT, annotateIdentity, buildConceptPrompt, buildIconPrompt, LORE_SYSTEM_PROMPT, sanitizeUserPrompt } from "./guardrails";
+import { discoverySchema, loreSchema, type Discovery, type MonsterLore } from "./lore-schema";
 
 export interface FalDeps { key: string; fetch: typeof fetch; sleep?: (ms: number) => Promise<void> }
 
@@ -205,4 +205,25 @@ export async function manifestMonster(
     lore: lore.status === "fulfilled" ? lore.value : null,
     iconPng: icon.status === "fulfilled" ? icon.value : null,
   };
+}
+
+// --- Click to annotate (vision) ----------------------------------------------
+// fal-ai/any-llm/vision accepts data URIs in image_urls, so the browser's
+// rendered closeup goes straight through with no upload step (verified
+// 2026-08-21 with a 122KB JPEG data URI).
+const VISION_MODEL = "anthropic/claude-haiku-4.5";
+
+export async function annotateFeature(
+  input: { closeup: string; context: string; lore: MonsterLore },
+  deps: FalDeps,
+): Promise<Discovery> {
+  const out = (await falQueue("fal-ai/any-llm/vision", {
+    model: VISION_MODEL,
+    image_urls: [input.closeup, input.context],
+    system_prompt: ANNOTATE_SYSTEM_PROMPT,
+    prompt: `${annotateIdentity(input.lore)}\nAnnotate the part centered in the closeup.`,
+  }, deps)) as { output?: string; text?: string };
+  const parsed = discoverySchema.safeParse(tryJson(out.output ?? out.text ?? ""));
+  if (!parsed.success) throw new Error("the model did not return a usable annotation");
+  return parsed.data;
 }
