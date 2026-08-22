@@ -95,7 +95,17 @@ export const SKETCH_WORKFLOW = "workflows/dexhonsa/miris-monster-sketch";
 export const MANIFEST_WORKFLOW = "workflows/dexhonsa/miris-monster-manifest";
 
 const MODEL_LLM = "fal-ai/any-llm";
-const LLM_NAME = "google/gemini-flash-1.5";
+// The lore document is the attendee's keepsake, so it gets the better model.
+// A/B on identical prompts (2026-08-21): gemini-flash-1.5 named a storm
+// axolotl "Axolotl the Sparktail" with 2 abilities; claude-haiku-4.5 returned
+// "Zephyrmite the Giggling Storm" with 3 sharper ones, for 3 extra seconds
+// that hide inside the ~145s Meshy wait. gpt-5-mini returned unparseable
+// output and was rejected.
+const LORE_MODEL = "anthropic/claude-haiku-4.5";
+// The workflows' utility legs (prompt shaping, icon prompt) stay on
+// google/gemini-flash-1.5: the shaper runs on EVERY reroll and its output is
+// just a prompt string. The direct path here uses the static buildIconPrompt
+// template instead, so it needs no utility model.
 
 function firstImageUrl(o: Record<string, unknown>): string | null {
   return (
@@ -135,7 +145,7 @@ function tryJson(text: string): unknown {
 /** The lore leg alone (used by the direct manifest path and by lore retry). */
 export async function generateLoreLLM(userText: string, deps: FalDeps): Promise<MonsterLore | null> {
   const out = (await falQueue(MODEL_LLM, {
-    model: LLM_NAME,
+    model: LORE_MODEL,
     system_prompt: LORE_SYSTEM_PROMPT,
     prompt: `The monster was summoned from this description: "${sanitizeUserPrompt(userText)}"`,
   }, deps)) as { output?: string; text?: string };

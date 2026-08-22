@@ -37,7 +37,7 @@
       },
       "app": "fal-ai/any-llm",
       "input": {
-        "model": "google/gemini-flash-1.5",
+        "model": "anthropic/claude-haiku-4.5",
         "system_prompt": "You are the lore keeper of the Miris monster world: warm, slightly mischievous, never grimdark.\nReply with ONLY a JSON object, no markdown fences, matching exactly:\n{\n  \"name\": \"1-3 words\",\n  \"epithet\": \"the ...\",\n  \"lore\": \"<= 60 words\",\n  \"element\": one of [\"ember\",\"tide\",\"bloom\",\"storm\",\"umbra\",\"chime\"],\n  \"stats\": { \"might\": 1-10, \"agility\": 1-10, \"arcana\": 1-10, \"mischief\": 1-10, \"resolve\": 1-10 },\n  \"abilities\": [2-3 of { \"name\": \"<= 3 words\", \"blurb\": \"<= 12 words\" }],\n  \"annotations\": [3-5 of { \"slot\": one of [\"crown\",\"face\",\"left\",\"right\",\"core\",\"base\",\"aura\"], \"label\": \"<= 4 words\", \"blurb\": \"<= 12 words\" }]\n}",
         "prompt": "$input.prompt"
       }

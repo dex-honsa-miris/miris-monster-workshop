@@ -83,7 +83,7 @@ Output mapping the app accepts: `image_url` (preferred), or `image.url`, or
 ## Workflow 2: miris-monster-manifest (runs once, at approve)
 
 As built, four run nodes: `model3d` (fal-ai/trellis on `$input.image_url`),
-`lore` (any-llm with the lore system prompt on `$input.prompt`), `iconprompt`
+`lore` (any-llm on **anthropic/claude-haiku-4.5** with the lore system prompt on `$input.prompt`), `iconprompt`
 (any-llm writing an emblem prompt) then `icon` (flux/schnell on
 `$iconprompt.output`). Output: `{ model_url, lore, icon_url }`. The lore LLM
 often wraps its JSON in markdown fences; the app's parser strips them.
@@ -124,3 +124,21 @@ the app knows these shapes.
 
 Sketch: ~$0.003/reroll (schnell). Manifest: one trellis run + one
 gemini-flash call + one schnell icon. Rerolls are the only repeated spend.
+
+## LLM choice (A/B, 2026-08-21)
+
+The lore node runs **anthropic/claude-haiku-4.5**; the two utility legs
+(prompt shaper, icon prompt) stay on **google/gemini-flash-1.5**.
+
+Measured on identical prompts through fal-ai/any-llm:
+
+| model | storm axolotl | teapot turtle | notes |
+|---|---|---|---|
+| gemini-flash-1.5 | "Axolotl the Sparktail", 2 abilities | "Tealot the Grumbling Brewer" | 2-3s, generic names |
+| claude-haiku-4.5 | "Zephyrmite the Giggling Storm", 3 abilities | "Brewkettle the Grumbly Steeper" | 5s, sharper and funnier |
+| gpt-5-mini | unparseable output | unparseable output | rejected |
+
+The lore is the attendee's keepsake, so it gets the better model; the 3 extra
+seconds hide inside the ~145s Meshy wait. The shaper runs on every reroll, so
+it stays cheap. Both models fence their JSON in markdown, which the app's
+parser strips.
