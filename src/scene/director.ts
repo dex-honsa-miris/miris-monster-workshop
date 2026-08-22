@@ -276,7 +276,9 @@ export class SceneDirector {
   /** Drag orbits the CAMERA around the whole scene: ring, embers, pedestal
    * and monster all hold together while the viewpoint moves. */
   applyOrbitDelta(dx: number, dy = 0): void {
-    this.#stage.orbitBy(dx * -0.006, dy * -0.004);
+    // Drag up should raise the camera (look down at the monster): pitch takes
+    // the drag delta directly, since screen y grows downward.
+    this.#stage.orbitBy(dx * -0.006, dy * 0.004);
   }
 
   /** Wheel / pinch: pull in or back out. */
