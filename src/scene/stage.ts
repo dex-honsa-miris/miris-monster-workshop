@@ -5,6 +5,18 @@ export class SceneStage {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   onFrame: Array<(dt: number, t: number) => void> = [];
+
+  // Camera orbit around the pedestal. The whole scene (ring, particles,
+  // pedestal, monster) is viewed from this orbit, so dragging moves the
+  // CAMERA rather than spinning the model.
+  #yaw = 0;
+  #pitch = 0.09;
+  #radius = 4.4;
+  readonly #target = new THREE.Vector3(0, 1.0, 0);
+  static readonly PITCH_MIN = -0.35;
+  static readonly PITCH_MAX = 1.05;
+  static readonly RADIUS_MIN = 2.2;
+  static readonly RADIUS_MAX = 9;
   #raf = 0;
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -13,8 +25,7 @@ export class SceneStage {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.append(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 50);
-    this.camera.position.set(0, 1.4, 4.2);
-    this.camera.lookAt(0, 1.0, 0);
+    this.#applyOrbit();
     this.scene.add(new THREE.HemisphereLight(0xdfe2ea, 0x14161c, 1.5));
     const key = new THREE.SpotLight(0xf4f5f8, 90, 14, 0.8, 0.5);
     key.position.set(2.5, 4.5, 2.5);
@@ -28,6 +39,29 @@ export class SceneStage {
     this.scene.add(key, fill, rim);
     addEventListener("resize", this.#onResize);
   }
+  /** Drag: yaw and pitch. Wheel/pinch: distance. */
+  orbitBy(dYaw: number, dPitch: number): void {
+    this.#yaw += dYaw;
+    this.#pitch = THREE.MathUtils.clamp(this.#pitch + dPitch, SceneStage.PITCH_MIN, SceneStage.PITCH_MAX);
+    this.#applyOrbit();
+  }
+
+  zoomBy(factor: number): void {
+    this.#radius = THREE.MathUtils.clamp(this.#radius * factor, SceneStage.RADIUS_MIN, SceneStage.RADIUS_MAX);
+    this.#applyOrbit();
+  }
+
+  #applyOrbit(): void {
+    const r = this.#radius;
+    const cp = Math.cos(this.#pitch);
+    this.camera.position.set(
+      this.#target.x + Math.sin(this.#yaw) * cp * r,
+      this.#target.y + Math.sin(this.#pitch) * r,
+      this.#target.z + Math.cos(this.#yaw) * cp * r,
+    );
+    this.camera.lookAt(this.#target);
+  }
+
   #onResize = (): void => {
     const el = this.renderer.domElement.parentElement!;
     this.camera.aspect = el.clientWidth / el.clientHeight;

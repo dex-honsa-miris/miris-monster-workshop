@@ -137,16 +137,21 @@ export function App(): JSX.Element {
     movedRef.current = 0;
     if ((e.target as HTMLElement).closest(".overlay")) return;
     dragRef.current = e.clientX;
+    dragYRef.current = e.clientY;
     // Capture keeps the drag alive past the window edge; a synthetic or
     // already-released pointer id throws, and a dragless page is fine.
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture, still draggable */ }
   };
+  const dragYRef = useRef<number | null>(null);
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
     directorRef.current?.pointerMove(e.clientX, e.clientY);
     if (dragRef.current === null) return;
-    movedRef.current += Math.abs(e.clientX - dragRef.current);
-    directorRef.current?.applyOrbitDelta(e.clientX - dragRef.current);
+    const dx = e.clientX - dragRef.current;
+    const dy = e.clientY - (dragYRef.current ?? e.clientY);
+    movedRef.current += Math.abs(dx) + Math.abs(dy);
+    directorRef.current?.applyOrbitDelta(dx, dy);
     dragRef.current = e.clientX;
+    dragYRef.current = e.clientY;
   };
   const [probing, setProbing] = useState(false);
   /** Click the monster itself: render the clicked spot, let vision name it,
@@ -180,6 +185,7 @@ export function App(): JSX.Element {
       if (!consumed) probeMonster(e.clientX, e.clientY);
     }
     dragRef.current = null;
+    dragYRef.current = null;
   };
 
   return (
@@ -191,6 +197,7 @@ export function App(): JSX.Element {
       onPointerMove={onPointerMove}
       onPointerUp={(e) => endDrag(e)}
       onPointerCancel={() => endDrag()}
+      onWheel={(e) => { e.preventDefault(); directorRef.current?.applyZoom(e.deltaY > 0 ? 1.08 : 0.93); }}
       onLostPointerCapture={endDrag}
     >
       <header

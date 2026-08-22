@@ -53,6 +53,8 @@ This writes `monster.glb` and `lore.json` to your workshop directory without tou
 
 ## Examine your monster
 
+Drag anywhere to orbit the whole scene: the creature, the pedestal and the ember ring all hold together while your viewpoint swings around them. Scroll to move closer or further away.
+
 On the reveal, click any part of your monster. The app renders a closeup of
 exactly where you clicked plus a full-body shot, sends both to a vision model
 along with your monster's identity, and pins a new annotation card on that

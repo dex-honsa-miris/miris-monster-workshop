@@ -16,6 +16,8 @@ export interface ConceptView {
 }
 
 const LEADER = 0x82838a;
+const CARD_DEPTH = 4.2; // how far in front of the camera the HUD cards sit
+const EDGE_CARD_MAX = 0.78; // keeps side cards from crowding the creature
 const DISCOVERED = 0xff3500; // player-found annotations get the accent leader
 const MESSAGE_BODY_MAX = 240;
 
@@ -86,14 +88,10 @@ export class SceneDirector {
     this.#stage.onFrame.push((dt, t) => {
       this.#ritual.update(dt, t);
       this.#pedestal.update(dt);
-      this.#edgeAlign(this.#checklist.mesh, -1, 1.25, 0.9);
-      this.#edgeAlign(this.#stats.mesh, 1, 1.2, 0.9);
-      this.#fitCentered(this.#concept.mesh, 0.55);
-      this.#fitCentered(this.#message.mesh, 1.5);
-      this.#billboard(this.#checklist.mesh);
-      this.#billboard(this.#concept.mesh);
-      this.#billboard(this.#stats.mesh);
-      this.#billboard(this.#message.mesh);
+      this.#placeHud(this.#checklist.mesh, -1, 0.1);
+      this.#placeHud(this.#stats.mesh, 1, 0.06);
+      this.#placeHud(this.#concept.mesh, 0, 0.08);
+      this.#placeHud(this.#message.mesh, 0, 0.5);
       for (const a of this.#annotations) this.#billboard(a.card.mesh);
     });
     this.#stage.start();
@@ -275,8 +273,15 @@ export class SceneDirector {
     this.#applyVisibility();
   }
 
-  applyOrbitDelta(dx: number): void {
-    this.#pedestal.mount.rotation.y += dx * 0.006;
+  /** Drag orbits the CAMERA around the whole scene: ring, embers, pedestal
+   * and monster all hold together while the viewpoint moves. */
+  applyOrbitDelta(dx: number, dy = 0): void {
+    this.#stage.orbitBy(dx * -0.006, dy * -0.004);
+  }
+
+  /** Wheel / pinch: pull in or back out. */
+  applyZoom(factor: number): void {
+    this.#stage.zoomBy(factor);
   }
 
   /**
@@ -317,32 +322,31 @@ export class SceneDirector {
     }
   }
 
-  #halfViewAt(z: number): number {
+  /** Places a card in world space as if it were pinned to the screen: at
+   * CARD_DEPTH in front of the camera, offset along the camera's right and up
+   * axes, and rotated to face the camera. `side` -1/1 parks it against the
+   * left/right frustum edge, 0 centers it; the card also scales down when the
+   * viewport is too narrow to hold it. */
+  #placeHud(mesh: THREE.Mesh, side: -1 | 0 | 1, up: number): void {
     const cam = this.#stage.camera;
-    const dist = Math.max(0.5, cam.position.z - z);
-    return Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * dist * cam.aspect;
-  }
-
-  /** Keeps a side card inside the frustum at its own depth, SHRINKING it when
-   * the viewport is narrower than the card (StackBlitz preview panes, phones).
-   * As the view narrows the card scales down and drifts toward center rather
-   * than sliding off screen. */
-  #edgeAlign(mesh: THREE.Mesh, side: -1 | 1, y: number, z: number): void {
-    const halfView = this.#halfViewAt(z);
-    const geo = mesh.geometry as THREE.PlaneGeometry;
-    const width = geo.parameters.width ?? 1;
-    const s = Math.min(1, (2 * halfView - 0.16) / width);
-    mesh.scale.setScalar(Math.max(0.05, s));
+    const depth = CARD_DEPTH;
+    const halfView = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * depth * cam.aspect;
+    const width = (mesh.geometry as THREE.PlaneGeometry).parameters.width ?? 1;
+    const limit = side === 0 ? 2 * halfView * 0.62 : 2 * halfView - 0.16;
+    mesh.scale.setScalar(Math.max(0.05, Math.min(side === 0 ? 0.8 : EDGE_CARD_MAX, limit / width)));
     const halfCard = (width * mesh.scale.x) / 2;
-    mesh.position.set(side * Math.max(0, halfView - halfCard - 0.08), y, z);
-  }
+    const x = side === 0 ? 0 : side * Math.max(0, halfView - halfCard - 0.06);
 
-  /** Centered cards (concept, message) just shrink to fit narrow viewports. */
-  #fitCentered(mesh: THREE.Mesh, z: number): void {
-    const halfView = this.#halfViewAt(z);
-    const geo = mesh.geometry as THREE.PlaneGeometry;
-    const width = geo.parameters.width ?? 1;
-    mesh.scale.setScalar(Math.max(0.05, Math.min(1, (2 * halfView * 0.94) / width)));
+    cam.updateMatrixWorld();
+    const basis = cam.matrixWorld;
+    const right = new THREE.Vector3().setFromMatrixColumn(basis, 0);
+    const upVec = new THREE.Vector3().setFromMatrixColumn(basis, 1);
+    const forward = new THREE.Vector3().setFromMatrixColumn(basis, 2).negate();
+    mesh.position.copy(cam.position)
+      .addScaledVector(forward, depth)
+      .addScaledVector(right, x)
+      .addScaledVector(upVec, up);
+    mesh.quaternion.copy(cam.quaternion);
   }
 
   #checklistRowAt(clientX: number, clientY: number): ReturnType<typeof checklistRowAt> {
@@ -352,6 +356,7 @@ export class SceneDirector {
     if (rect.width === 0 || rect.height === 0) return null;
     this.#ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.#raycaster.setFromCamera(this.#ndc, this.#stage.camera);
+    this.#checklist.mesh.updateMatrixWorld(true); // camera child: keep world matrix fresh for the ray
     const hit = this.#raycaster.intersectObject(this.#checklist.mesh, false)[0];
     if (!hit?.uv) return null;
     // CanvasTexture default flipY: uv v=1 is the TOP of the canvas.
