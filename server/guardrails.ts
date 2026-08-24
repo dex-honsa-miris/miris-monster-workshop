@@ -10,20 +10,28 @@ export function sanitizeUserPrompt(raw: string): string {
     .slice(0, 240);
 }
 
-// Validated live 2026-08-21 against fal-ai/flux/schnell: produces clean
-// monster-taming-JRPG game assets (chunky silhouette, matte cel shading,
-// plain disc + light backdrop -- also ideal input for image-to-3D).
+// The bible optimises for image-to-3D reconstruction: rich MATTE surface
+// detail. Detail lives in the diffuse texture (scales, fur, skin), which is
+// exactly what survives into Meshy's base-color map -- while gloss, wetness
+// and transparency are lighting effects the reconstructor misreads as
+// geometry or bakes in as frozen highlights. The earlier cel-shaded bible
+// failed for the opposite reason: flat two-tone color fields carry no
+// surface information at all, and the models came back smooth and blobby.
 const ART_BIBLE =
-  "stylized fantasy creature design for a monster-taming video game, collectible game asset. " +
-  "Clean bold shapes, chunky readable silhouette, cel-shaded with soft matte textures, " +
-  "flat colors with simple two-tone shading, minimal specular highlights, matte finish, " +
-  "friendly-with-an-edge character design. Single full-body creature, centered, " +
-  "three-quarter view, standing on a plain pale disc, clean light gray studio background, " +
-  "no scenery, high quality game concept art.";
+  "highly detailed fantasy creature design for a monster-taming video game, collectible game asset. " +
+  "Photorealistic rendering with rich matte surface detail: individual scales, fur strands, " +
+  "skin folds and texture visible up close, sculpted anatomy, crisp material definition. " +
+  "Strictly matte, completely diffuse surfaces throughout, like unvarnished painted resin. " +
+  "Chunky readable silhouette, friendly-with-an-edge character design. Single full-body " +
+  "creature, centered, three-quarter view, feet on nothing -- floating on a plain background " +
+  "with no ground, no floor, no disc, no pedestal, no base. Clean light gray studio " +
+  "background, flat even diffuse lighting, no cast shadows, no scenery.";
 
 const NEGATIVE =
-  "photorealistic, glossy, shiny, wet look, chrome, metallic sheen, specular hotspots, " +
-  "lens flare, detailed background, scenery, text, watermark, human, multiple creatures";
+  "glossy, shiny, wet look, slimy, chrome, metallic sheen, specular hotspots, reflections, " +
+  "transparency, translucent, glass, iridescent, lens flare, rim light, dramatic shadows, " +
+  "detailed background, scenery, ground plane, floor, pedestal, base, platform, disc, " +
+  "text, watermark, human, multiple creatures";
 
 export function buildConceptPrompt(userText: string): { prompt: string; negativePrompt: string } {
   const cleaned = sanitizeUserPrompt(userText);
