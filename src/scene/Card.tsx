@@ -22,6 +22,8 @@ export interface CardProps {
   visible?: boolean;
   renderOrder?: number;
   billboard?: boolean;
+  /** Draw over everything: an annotation card behind the monster is useless. */
+  alwaysOnTop?: boolean;
 }
 
 export function Card({
@@ -36,6 +38,7 @@ export function Card({
   visible = true,
   renderOrder = 0,
   billboard = true,
+  alwaysOnTop = false,
 }: CardProps): React.ReactElement {
   // One CanvasCard per mounted component; disposed on unmount.
   const card = useMemo(() => new CanvasCard(worldWidth, worldHeight, px), [worldWidth, worldHeight, px]);
@@ -43,6 +46,12 @@ export function Card({
   const camera = useThree((s) => s.camera);
 
   useEffect(() => () => card.dispose(), [card]);
+  useEffect(() => {
+    const mat = card.mesh.material as THREE.MeshBasicMaterial;
+    mat.depthTest = !alwaysOnTop;
+    mat.depthWrite = !alwaysOnTop;
+    mat.needsUpdate = true;
+  }, [card, alwaysOnTop]);
   useEffect(() => { paint(card); }, [card, paint, repaintKey]);
 
   useFrame(() => {

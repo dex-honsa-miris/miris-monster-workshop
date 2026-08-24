@@ -109,7 +109,10 @@ function Annotation({ spec, open }: { spec: AnnotationSpec; open: boolean }): Re
           onPointerOver={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = "pointer"; }}
           onPointerOut={() => { setHovered(false); document.body.style.cursor = ""; }}
         >
-          <ringGeometry args={[HOTSPOT_SIZE * 0.55, HOTSPOT_SIZE, 28]} />
+          {/* Solid, not a ring: a ring's hollow middle let the pointer pass
+              straight through the marker's centre, which is exactly where
+              people aim. */}
+          <circleGeometry args={[HOTSPOT_SIZE, 28]} />
           <meshBasicMaterial
             color={spec.discovered ? ACCENT : "#ffffff"}
             transparent
@@ -135,7 +138,8 @@ function Annotation({ spec, open }: { spec: AnnotationSpec; open: boolean }): Re
         opacityRef={opacity}
         scaleRef={scale}
         visible={shown}
-        renderOrder={2}
+        renderOrder={5}
+        alwaysOnTop
       />
     </group>
   );
@@ -178,9 +182,8 @@ export function Monster({ url, discoveries, pinned, onPickPoint, onHotspotClick 
     setSpecs(buildAnnotations(model, mount.current, discoveries));
   }, [model, discoveries]);
 
-  useFrame((_, dt) => {
-    if (mount.current) mount.current.rotation.y += dt * 0.15;
-  });
+  // No turntable: the creature holds still and the viewer orbits instead.
+  // Markers stay under the cursor, and a card pinned open does not drift.
 
   return (
     <group ref={mount}>
