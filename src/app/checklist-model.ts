@@ -57,7 +57,7 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
       items: [
         {
           id: "asset-id",
-          label: "Upload in the Miris portal, paste the asset id",
+          label: "Upload in the portal, paste the id",
           state: s?.upload.assetId ? "done" : "todo",
           detail: s?.upload.assetId ?? undefined,
           href: DASHBOARDS["portal"],
@@ -67,7 +67,7 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
     {
       title: "Deploy",
       items: [
-        { id: "deploy", label: "npm run deploy, then press Deploy in Bolt", state: s?.deployment.url ? "done" : "todo", detail: s?.deployment.url ?? undefined },
+        { id: "deploy", label: "npm run deploy, then Deploy in Bolt", state: s?.deployment.url ? "done" : "todo", detail: s?.deployment.url ?? undefined },
       ],
     },
   ];

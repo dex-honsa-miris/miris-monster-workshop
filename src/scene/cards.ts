@@ -196,14 +196,14 @@ export function layoutChecklist(phases: Phase[]): { entries: ChecklistEntry[]; r
   let y = 52;
   for (const phase of phases) {
     entries.push({ kind: "phase", y, title: phase.title });
-    y += 30;
+    y += 36;
     for (const item of phase.items) {
       const detailLines = item.detail && item.state === "error" ? wrapText(item.detail, 52) : [];
       entries.push({ kind: "item", y, item, detailLines });
-      rows.push({ id: item.id, href: item.href, y0: y - 20, y1: y + 8 });
-      y += 26 + detailLines.length * 19;
+      rows.push({ id: item.id, href: item.href, y0: y - 24, y1: y + 10 });
+      y += 32 + detailLines.length * 23;
     }
-    y += 14;
+    y += 18;
   }
   return { entries, rows };
 }
@@ -222,7 +222,7 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
     for (const e of entries) {
       if (e.kind === "phase") {
         ctx.fillStyle = MUTED;
-        kicker(ctx, 14);
+        kicker(ctx, 17);
         ctx.fillText(e.title!.toUpperCase(), 28, e.y);
         resetTracking(ctx);
         continue;
@@ -232,10 +232,10 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
       if (hovered) {
         ctx.fillStyle = "#1a1b1f";
         ctx.beginPath();
-        ctx.roundRect(20, e.y - 20, w - 40, 28, 8);
+        ctx.roundRect(20, e.y - 24, w - 40, 34, 8);
         ctx.fill();
       }
-      ctx.font = `20px ${SANS}`;
+      ctx.font = `25px ${SANS}`;
       ctx.fillStyle = STATE_COLOR[item.state];
       ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
       ctx.fillStyle = hovered ? INK : item.state === "done" ? "#828386" : INK;
@@ -247,9 +247,9 @@ export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: strin
       }
       if (e.detailLines!.length) {
         ctx.fillStyle = STATE_COLOR.error;
-        ctx.font = `15px ${SANS}`;
-        let dy = e.y + 19;
-        for (const line of e.detailLines!) { ctx.fillText(line, 54, dy); dy += 19; }
+        ctx.font = `18px ${SANS}`;
+        let dy = e.y + 23;
+        for (const line of e.detailLines!) { ctx.fillText(line, 54, dy); dy += 23; }
       }
     }
   });
@@ -260,12 +260,12 @@ export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: str
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
-    ctx.font = `600 22px ${SANS}`;
-    ctx.fillText(a.label, 24, 42);
+    ctx.font = `600 26px ${SANS}`;
+    ctx.fillText(a.label, 24, 44);
     ctx.fillStyle = MUTED;
-    ctx.font = `17px ${SANS}`;
-    let y = 76;
-    for (const line of wrapText(a.blurb, 34)) { ctx.fillText(line, 24, y); y += 24; }
+    ctx.font = `20px ${SANS}`;
+    let y = 80;
+    for (const line of wrapText(a.blurb, 30)) { ctx.fillText(line, 24, y); y += 27; }
   });
 }
 
@@ -274,13 +274,13 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
-    ctx.font = `600 32px ${SANS}`;
+    ctx.font = `600 38px ${SANS}`;
     ctx.fillText(lore.name, 28, 54);
     ctx.fillStyle = MUTED;
-    ctx.font = `italic 400 19px ${SANS}`;
+    ctx.font = `italic 400 23px ${SANS}`;
     ctx.fillText(lore.epithet, 28, 82);
     ctx.fillStyle = ACCENT;
-    kicker(ctx, 12);
+    kicker(ctx, 14);
     ctx.fillText(`ELEMENT / ${lore.element.toUpperCase()}`, 28, 110);
     resetTracking(ctx);
     if (icon) {
@@ -289,7 +289,7 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
       ctx.strokeRect(w - 96, 24, 72, 72);
     }
     let y = 144;
-    ctx.font = `16px ${SANS}`;
+    ctx.font = `19px ${SANS}`;
     for (const [k, v] of Object.entries(lore.stats)) {
       ctx.fillStyle = MUTED;
       ctx.fillText(k, 28, y);
@@ -297,28 +297,38 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
       ctx.fillRect(130, y - 11, 200, 10);
       ctx.fillStyle = INK;
       ctx.fillRect(130, y - 11, 20 * (v as number), 10);
-      y += 28;
+      y += 31;
     }
     ctx.fillStyle = ACCENT;
-    kicker(ctx, 11);
-    y += 6;
+    kicker(ctx, 13);
+    y += 8;
     ctx.fillText("ABILITIES", 28, y);
     resetTracking(ctx);
     y += 24;
     for (const a of lore.abilities) {
       ctx.fillStyle = INK;
-      ctx.font = `600 15px ${SANS}`;
+      ctx.font = `600 18px ${SANS}`;
       ctx.fillText(a.name, 28, y);
-      const nameW = ctx.measureText(a.name).width;
-      ctx.fillStyle = MUTED;
-      ctx.font = `14px ${SANS}`;
-      ctx.fillText(` · ${a.blurb}`, 28 + nameW, y);
       y += 21;
+      // Blurbs are a full sentence: wrap them instead of letting the line run
+      // off the card edge (single-line overflow showed once type got bigger).
+      ctx.fillStyle = MUTED;
+      ctx.font = `16px ${SANS}`;
+      for (const line of wrapText(a.blurb, 42)) { ctx.fillText(line, 28, y); y += 19; }
+      y += 7;
     }
     ctx.fillStyle = MUTED;
-    ctx.font = `400 15px ${SANS}`;
-    y += 8;
-    for (const line of wrapText(lore.lore, 46)) { ctx.fillText(line, 28, y); y += 21; }
+    ctx.font = `400 18px ${SANS}`;
+    y += 10;
+    // The card has a fixed height and the lore length varies, so draw only
+    // the lines that fit and mark a trim rather than spilling past the edge.
+    const lines = wrapText(lore.lore, 40);
+    for (let i = 0; i < lines.length; i++) {
+      const last = y + 24 > h - 22;
+      ctx.fillText(last && i < lines.length - 1 ? `${lines[i]!.slice(0, 37)}...` : lines[i]!, 28, y);
+      y += 24;
+      if (last) break;
+    }
   });
 }
 
@@ -335,7 +345,7 @@ export function paintConcept(
     panel(ctx, w, h);
     if (opts.imageBitmap) ctx.drawImage(opts.imageBitmap, 24, 24, w - 48, w - 48);
     ctx.fillStyle = MUTED;
-    ctx.font = `italic 400 17px ${SANS}`;
+    ctx.font = `italic 400 20px ${SANS}`;
     let y = w;
     for (const line of wrapText(opts.prompt, 44)) { ctx.fillText(line, 24, y); y += 22; }
     if (opts.rerolls > 1) {
@@ -352,11 +362,11 @@ export function paintMessage(card: CanvasCard, opts: { title: string; body: stri
   card.paint((ctx, w, h) => {
     panel(ctx, w, h);
     ctx.fillStyle = INK;
-    ctx.font = `600 22px ${SANS}`;
-    ctx.fillText(opts.title, 24, 44);
+    ctx.font = `600 27px ${SANS}`;
+    ctx.fillText(opts.title, 24, 46);
     ctx.fillStyle = MUTED;
-    ctx.font = `16px ${SANS}`;
-    let y = 82;
-    for (const line of wrapText(opts.body, 42)) { ctx.fillText(line, 24, y); y += 24; }
+    ctx.font = `19px ${SANS}`;
+    let y = 86;
+    for (const line of wrapText(opts.body, 36)) { ctx.fillText(line, 24, y); y += 27; }
   });
 }

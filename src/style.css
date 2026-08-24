@@ -98,7 +98,7 @@ html, body, #root {
   border-radius: 6px;
   background: var(--panel);
   color: var(--ink);
-  font: 15px/1.4 var(--sans);
+  font: 16px/1.4 var(--sans);
   transition: border-color 0.15s ease;
 }
 .overlay .prompt::placeholder { color: var(--dim); font-style: italic; }
@@ -113,7 +113,7 @@ html, body, #root {
   border-radius: 4px;
   background: rgba(17, 18, 21, 0.8);
   color: var(--ink);
-  font: 500 14px/1 var(--sans);
+  font: 500 15px/1 var(--sans);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
@@ -123,10 +123,31 @@ html, body, #root {
 .overlay .btn.primary:hover:not(:disabled) { background: #e4e5e9; border-color: #e4e5e9; }
 .overlay .btn:disabled { opacity: 0.4; cursor: default; }
 
+/* A grouped step: keeps its own rows spaced and sitting on an opaque
+   backing, so nothing behind it can ever read as overlapping text. */
+.overlay .panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: min(760px, 92vw);
+  padding: 18px 22px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 9, 13, 0.94);
+}
+.overlay .panel-title {
+  margin: 0;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
 .overlay .hint {
   margin: 0;
   color: var(--dim);
-  font: 14px/1.5 var(--sans);
+  font: 15px/1.5 var(--sans);
   text-align: center;
   max-width: 62ch;
 }

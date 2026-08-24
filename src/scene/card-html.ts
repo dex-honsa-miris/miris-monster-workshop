@@ -29,10 +29,10 @@ const CARD_CSS = `
   }
   .card * { box-sizing: border-box; margin: 0; }
   .eyebrow {
-    font: 500 14px "Geist Mono", ui-monospace, monospace;
-    letter-spacing: 3px; text-transform: uppercase; color: #9e9d9f;
+    font: 500 17px "Geist Mono", ui-monospace, monospace;
+    letter-spacing: 3.4px; text-transform: uppercase; color: #9e9d9f;
   }
-  .row { position: absolute; left: 28px; right: 20px; display: flex; gap: 12px; align-items: baseline; font: 20px "Geist", system-ui, sans-serif; }
+  .row { position: absolute; left: 28px; right: 20px; display: flex; gap: 12px; align-items: baseline; font: 25px "Geist", system-ui, sans-serif; }
   .row.hover { background: #1a1b1f; border-radius: 8px; margin: -4px -8px; padding: 4px 8px; }
   .row .icon { width: 14px; }
   .row .arrow { margin-left: auto; color: #55565b; }
@@ -43,7 +43,7 @@ const CARD_CSS = `
   .state-doing .icon { color: #ff3500; }
   .state-error .icon { color: #ff3500; }
   .state-todo .icon { color: #55565b; }
-  .detail { position: absolute; left: 54px; right: 20px; font: 15px "Geist", system-ui, sans-serif; color: #ff3500; }
+  .detail { position: absolute; left: 54px; right: 20px; font: 18px "Geist", system-ui, sans-serif; color: #ff3500; }
   .phase-title { position: absolute; left: 28px; }
 `;
 
@@ -57,20 +57,20 @@ export function checklistMarkup(phases: Phase[], hoverId: string | null): string
   for (const e of entries) {
     if (e.kind === "phase") {
       // The painter draws text baselines; HTML positions boxes. top = baseline - ascent-ish.
-      parts.push(`<div class="eyebrow phase-title" style="top:${e.y - 15}px">${esc(e.title!)}</div>`);
+      parts.push(`<div class="eyebrow phase-title" style="top:${e.y - 18}px">${esc(e.title!)}</div>`);
       continue;
     }
     const item = e.item!;
     const hovered = hoverId !== null && item.id === hoverId;
     parts.push(
-      `<div class="row state-${item.state}${hovered ? " hover" : ""}" style="top:${e.y - 20}px">` +
+      `<div class="row state-${item.state}${hovered ? " hover" : ""}" style="top:${e.y - 24}px">` +
         `<span class="icon">${ICON[item.state]}</span>` +
         `<span class="label">${esc(item.label)}</span>` +
         (item.href ? `<span class="arrow">→</span>` : "") +
       `</div>`,
     );
     if (e.detailLines!.length) {
-      parts.push(`<div class="detail" style="top:${e.y + 6}px">${esc(item.detail ?? "")}</div>`);
+      parts.push(`<div class="detail" style="top:${e.y + 8}px">${esc(item.detail ?? "")}</div>`);
     }
   }
   return shell(parts.join(""));
@@ -79,8 +79,8 @@ export function checklistMarkup(phases: Phase[], hoverId: string | null): string
 export function annotationMarkup(a: { label: string; blurb: string }): string {
   return shell(
     `<div style="padding:20px 24px">` +
-      `<div style="font:600 22px 'Geist',system-ui,sans-serif">${esc(a.label)}</div>` +
-      `<div style="font:17px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:8px;line-height:1.35">${esc(a.blurb)}</div>` +
+      `<div style="font:600 26px 'Geist',system-ui,sans-serif">${esc(a.label)}</div>` +
+      `<div style="font:20px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:8px;line-height:1.35">${esc(a.blurb)}</div>` +
     `</div>`,
   );
 }
@@ -90,7 +90,7 @@ export function statsMarkup(lore: MonsterLore, iconUrl: string | null = null): s
     .map(
       ([k, v]) =>
         `<div style="display:flex;align-items:center;gap:14px;margin-top:12px">` +
-          `<span style="width:90px;font:16px 'Geist',system-ui,sans-serif;color:#9e9d9f">${esc(k)}</span>` +
+          `<span style="width:90px;font:19px 'Geist',system-ui,sans-serif;color:#9e9d9f">${esc(k)}</span>` +
           `<span style="flex:1;height:10px;background:#1a1b1f;border-radius:2px;overflow:hidden">` +
             `<span style="display:block;height:100%;background:#ffffff;width:${(v as number) * 10}%"></span>` +
           `</span>` +
@@ -100,8 +100,8 @@ export function statsMarkup(lore: MonsterLore, iconUrl: string | null = null): s
   const abilities = lore.abilities
     .map(
       (a) =>
-        `<div style="margin-top:8px"><span style="font:600 15px 'Geist',system-ui,sans-serif;color:#ffffff">${esc(a.name)}</span>` +
-        `<span style="font:14px 'Geist',system-ui,sans-serif;color:#9e9d9f"> · ${esc(a.blurb)}</span></div>`,
+        `<div style="margin-top:8px"><span style="font:600 18px 'Geist',system-ui,sans-serif;color:#ffffff">${esc(a.name)}</span>` +
+        `<span style="font:17px 'Geist',system-ui,sans-serif;color:#9e9d9f"> · ${esc(a.blurb)}</span></div>`,
     )
     .join("");
   const icon = iconUrl
@@ -109,12 +109,12 @@ export function statsMarkup(lore: MonsterLore, iconUrl: string | null = null): s
     : "";
   return shell(
     `<div style="padding:24px 28px">${icon}` +
-      `<div style="font:600 32px 'Geist',system-ui,sans-serif">${esc(lore.name)}</div>` +
-      `<div style="font:italic 400 19px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:4px">${esc(lore.epithet)}</div>` +
-      `<div class="eyebrow" style="font-size:12px;color:#ff3500;margin-top:16px">ELEMENT / ${esc(lore.element.toUpperCase())}</div>` +
+      `<div style="font:600 38px 'Geist',system-ui,sans-serif">${esc(lore.name)}</div>` +
+      `<div style="font:italic 400 23px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:4px">${esc(lore.epithet)}</div>` +
+      `<div class="eyebrow" style="font-size:14px;color:#ff3500;margin-top:16px">ELEMENT / ${esc(lore.element.toUpperCase())}</div>` +
       `<div style="margin-top:10px">${bars}</div>` +
       `<div class="eyebrow" style="font-size:11px;margin-top:16px">ABILITIES</div>${abilities}` +
-      `<div style="font:400 15px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:14px;line-height:1.4">${esc(lore.lore)}</div>` +
+      `<div style="font:400 18px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:14px;line-height:1.4">${esc(lore.lore)}</div>` +
     `</div>`,
   );
 }
@@ -126,7 +126,7 @@ export function conceptMarkup(opts: { imageUrl: string | null; prompt: string; r
   const take = opts.rerolls > 1 ? `<div class="eyebrow" style="font-size:11px;margin-top:10px">TAKE ${opts.rerolls}</div>` : "";
   return shell(
     `<div style="padding:24px">${img}` +
-      `<div style="font:italic 400 17px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:14px;line-height:1.4">${esc(opts.prompt)}</div>` +
+      `<div style="font:italic 400 20px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:14px;line-height:1.4">${esc(opts.prompt)}</div>` +
       take +
     `</div>`,
   );
@@ -135,8 +135,8 @@ export function conceptMarkup(opts: { imageUrl: string | null; prompt: string; r
 export function messageMarkup(opts: { title: string; body: string }): string {
   return shell(
     `<div style="padding:22px 24px">` +
-      `<div style="font:600 22px 'Geist',system-ui,sans-serif">${esc(opts.title)}</div>` +
-      `<div style="font:16px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:10px;line-height:1.45">${esc(opts.body)}</div>` +
+      `<div style="font:600 26px 'Geist',system-ui,sans-serif">${esc(opts.title)}</div>` +
+      `<div style="font:19px 'Geist',system-ui,sans-serif;color:#9e9d9f;margin-top:10px;line-height:1.45">${esc(opts.body)}</div>` +
     `</div>`,
   );
 }

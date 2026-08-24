@@ -16,8 +16,8 @@ export interface ConceptView {
 }
 
 const LEADER = 0x82838a;
-const CARD_DEPTH = 4.2; // how far in front of the camera the HUD cards sit
-const EDGE_CARD_MAX = 0.78; // keeps side cards from crowding the creature
+const CARD_DEPTH = 3.9; // how far in front of the camera the HUD cards sit
+const EDGE_CARD_MAX = 0.95; // keeps side cards from crowding the creature
 const DISCOVERED = 0xff3500; // player-found annotations get the accent leader
 const MESSAGE_BODY_MAX = 240;
 
@@ -30,9 +30,9 @@ export class SceneDirector {
   readonly #stage: SceneStage;
   readonly #ritual = new RitualCircle();
   readonly #pedestal = new Pedestal();
-  readonly #checklist = new CanvasCard(1.35, 1.6);
+  readonly #checklist = new CanvasCard(1.35, 1.5);
   readonly #concept = new CanvasCard(1.1, 1.4); // taller than wide: paintConcept lays out below a square image
-  readonly #stats = new CanvasCard(1.25, 1.35);
+  readonly #stats = new CanvasCard(1.3, 1.62);
   readonly #message = new CanvasCard(1.5, 0.75);
 
   #phase: FlowPhase = "setup";

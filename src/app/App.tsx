@@ -261,9 +261,12 @@ export function App(): JSX.Element {
         )}
 
         {phase === "reveal" && !assetId && (
-          <>
+          // One panel, one flow: the publish steps used to be three loose
+          // siblings that could crowd each other on short or wide windows.
+          <div className="panel">
+            <p className="panel-title">Publish it</p>
             <p className="hint">
-              Publish it: download the model, upload it in the Miris portal under your account, then paste the asset id here.
+              Download the model, upload it in the Miris portal under your account, then paste the asset id here.
             </p>
             <div className="row">
               <a className="btn" href="/generated/monster.glb" download="monster.glb">Download monster.glb</a>
@@ -282,7 +285,7 @@ export function App(): JSX.Element {
                 {busy ? "Saving" : "Save asset id"}
               </button>
             </div>
-          </>
+          </div>
         )}
 
         {assetId && !deployedUrl && (
