@@ -35,7 +35,10 @@
    "app": "openai/gpt-image-2",
    "input": {
     "quality": "high",
-    "image_size": "square_hd",
+    "image_size": {
+     "width": 2048,
+     "height": 2048
+    },
     "prompt": "$shape.output",
     "output_format": "jpeg"
    }
