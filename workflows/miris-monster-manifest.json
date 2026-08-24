@@ -20,7 +20,7 @@
     "enable_pbr": true,
     "model_type": "standard",
     "topology": "quad",
-    "target_polycount": 150000,
+    "target_polycount": 80000,
     "symmetry_mode": "auto",
     "enable_safety_checker": true,
     "ultra_mode": true
