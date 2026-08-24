@@ -92,6 +92,101 @@ async function recordLore(lore: MonsterLore | null): Promise<void> {
   }
 }
 
+/** Kick off the manifest generation for an approved concept: reset the
+ * session to "summoning", run the workflow in the background, bank the result.
+ * Shared by approve and by summon/retry, so a timed-out generation can be
+ * relaunched without re-sketching (and re-paying for) the concept. */
+/** Milestone weights for the manifest workflow's quick legs. The 3D node is
+ * the rest of the bar; fal exposes no percentage for it (verified), so the
+ * front-end eases through that stretch on a clock. */
+const NODE_PROGRESS: Record<string, { done: number; label: string }> = {
+  lore: { done: 0.1, label: "Lore written" },
+  iconprompt: { done: 0.03, label: "Emblem designed" },
+  icon: { done: 0.12, label: "Emblem painted" },
+};
+
+async function startSummon(concept: { id: string; prompt: string; imageUrl: string; styledPrompt?: string | null }): Promise<void> {
+  const s = await readState();
+  await patchState({
+    approvedConceptId: concept.id,
+    model: { status: "running", glbPath: null, error: null, progress: 0.02, stage: "Reading the concept" },
+    loreStatus: { status: "running", error: null },
+    // The notes and the asset id belong to the creature leaving the
+    // pedestal: discovery points are stored in ITS local space, so carrying
+    // them over would pin them to meaningless spots on the new one. Stash
+    // them on its record so they come back with it.
+    monsters: stash(s),
+    discoveries: [],
+    upload: { glbSha: null, assetId: null, state: "none", error: null },
+  });
+  // Stage 2 MANIFEST: 3D model + lore + emblem icon in one go (workflow
+  // when configured, three direct legs otherwise).
+  void (async () => {
+    try {
+      // Milestones from the workflow stream become a progress floor the
+      // scene's bar can never fall below, plus a stage label for the hint.
+      let done = 0.02;
+      const onNode = (p: { status: string; node?: string; event?: string }): void => {
+        if (p.event === "submit" && p.node === "model3d") {
+          void patchState({ model: { stage: "Sculpting the 3D model" } });
+          return;
+        }
+        if (p.event !== "completion" || !p.node) return;
+        const w = NODE_PROGRESS[p.node];
+        if (!w) return;
+        done += w.done;
+        void patchState({ model: { progress: Math.min(0.3, done), stage: w.label } });
+      };
+      const m = await manifestMonster(
+        concept.prompt,
+        concept.imageUrl,
+        { key: env().FAL_KEY!, fetch, stream: true },
+        manifestWorkflow(),
+        onNode,
+        concept.styledPrompt,
+      );
+      await mkdir(workshopDir(), { recursive: true });
+      await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
+      await writeFile(glbFile(), Buffer.from(m.glb));
+      await copyFile(glbFile(), join(publicGenerated(), "monster.glb"));
+      if (m.iconPng) await writeFile(join(publicGenerated(), "icon.png"), Buffer.from(m.iconPng));
+      await recordLore(m.lore);
+
+      // Bank the originals so this creature can be summoned back after
+      // later ones have overwritten the "current" files.
+      const dir = monsterDir(concept.id);
+      await mkdir(dir, { recursive: true });
+      await mkdir(join(publicGenerated(), "bank"), { recursive: true });
+      await writeFile(join(dir, "monster.glb"), Buffer.from(m.glb));
+      if (m.lore) await writeFile(join(dir, "lore.json"), JSON.stringify(m.lore, null, 2));
+      if (m.iconPng) {
+        await writeFile(join(dir, "icon.png"), Buffer.from(m.iconPng));
+        await writeFile(bankIcon(concept.id), Buffer.from(m.iconPng));
+      }
+      const cur = await readState();
+      const record: MonsterRecord = {
+        id: concept.id,
+        prompt: concept.prompt,
+        name: m.lore?.name ?? "Unnamed",
+        epithet: m.lore?.epithet ?? "",
+        createdAt: new Date().toISOString(),
+        discoveries: [],
+        assetId: null,
+      };
+      await patchState({
+        model: { status: "done", glbPath: glbFile(), error: null, progress: 1, stage: null },
+        monsters: [...cur.monsters.filter((x) => x.id !== record.id), record],
+        currentMonsterId: record.id,
+      });
+    } catch (e) {
+      await patchState({
+        model: { status: "failed", glbPath: null, error: String(e), progress: 0, stage: null },
+        loreStatus: { status: "failed", error: String(e) },
+      });
+    }
+  })().catch((e) => console.warn("[workshop] background task failed:", e));
+}
+
 const routes: Record<string, Handler> = {
   "GET /api/status": async () => {
     await adoptCurrentMonster();
@@ -135,70 +230,23 @@ const routes: Record<string, Handler> = {
     }
     const concept = s.concepts.find((c) => c.id === body.conceptId);
     if (!concept) return { status: 404, json: { error: "unknown concept", hint: "Generate a concept first." } };
-    await patchState({
-      approvedConceptId: concept.id,
-      model: { status: "running", glbPath: null, error: null },
-      loreStatus: { status: "running", error: null },
-      // The notes and the asset id belong to the creature leaving the
-      // pedestal: discovery points are stored in ITS local space, so carrying
-      // them over would pin them to meaningless spots on the new one. Stash
-      // them on its record so they come back with it.
-      monsters: stash(s),
-      discoveries: [],
-      upload: { glbSha: null, assetId: null, state: "none", error: null },
-    });
-    // Stage 2 MANIFEST: 3D model + lore + emblem icon in one go (workflow
-    // when configured, three direct legs otherwise).
-    void (async () => {
-      try {
-        const m = await manifestMonster(
-          concept.prompt,
-          concept.imageUrl,
-          { key: env().FAL_KEY!, fetch },
-          manifestWorkflow(),
-          undefined,
-          concept.styledPrompt,
-        );
-        await mkdir(workshopDir(), { recursive: true });
-        await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
-        await writeFile(glbFile(), Buffer.from(m.glb));
-        await copyFile(glbFile(), join(publicGenerated(), "monster.glb"));
-        if (m.iconPng) await writeFile(join(publicGenerated(), "icon.png"), Buffer.from(m.iconPng));
-        await recordLore(m.lore);
+    await startSummon(concept);
+    return { status: 202, json: { started: true } };
+  },
 
-        // Bank the originals so this creature can be summoned back after
-        // later ones have overwritten the "current" files.
-        const dir = monsterDir(concept.id);
-        await mkdir(dir, { recursive: true });
-        await mkdir(join(publicGenerated(), "bank"), { recursive: true });
-        await writeFile(join(dir, "monster.glb"), Buffer.from(m.glb));
-        if (m.lore) await writeFile(join(dir, "lore.json"), JSON.stringify(m.lore, null, 2));
-        if (m.iconPng) {
-          await writeFile(join(dir, "icon.png"), Buffer.from(m.iconPng));
-          await writeFile(bankIcon(concept.id), Buffer.from(m.iconPng));
-        }
-        const cur = await readState();
-        const record: MonsterRecord = {
-          id: concept.id,
-          prompt: concept.prompt,
-          name: m.lore?.name ?? "Unnamed",
-          epithet: m.lore?.epithet ?? "",
-          createdAt: new Date().toISOString(),
-          discoveries: [],
-          assetId: null,
-        };
-        await patchState({
-          model: { status: "done", glbPath: glbFile(), error: null },
-          monsters: [...cur.monsters.filter((x) => x.id !== record.id), record],
-          currentMonsterId: record.id,
-        });
-      } catch (e) {
-        await patchState({
-          model: { status: "failed", glbPath: null, error: String(e) },
-          loreStatus: { status: "failed", error: String(e) },
-        });
-      }
-    })().catch((e) => console.warn("[workshop] background task failed:", e));
+  // Relaunch a summon that failed (a timeout, a fal hiccup) using the
+  // already-paid-for concept, so a failed 3D stage never costs a re-sketch.
+  "POST /api/summon/retry": async () => {
+    const s = await readState();
+    if (s.model.status === "running") {
+      return { status: 409, json: { error: "already summoning", hint: "Your monster is already on the way." } };
+    }
+    if (s.model.status !== "failed") {
+      return { status: 409, json: { error: "nothing to retry", hint: "The last summon did not fail." } };
+    }
+    const concept = s.concepts.find((c) => c.id === s.approvedConceptId);
+    if (!concept) return { status: 404, json: { error: "no approved concept", hint: "Sketch and approve a concept first." } };
+    await startSummon(concept);
     return { status: 202, json: { started: true } };
   },
 

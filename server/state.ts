@@ -41,7 +41,15 @@ export interface WorkshopState {
   currentMonsterId: string | null;
   concepts: Concept[];
   approvedConceptId: string | null;
-  model: { status: "none" | "running" | "done" | "failed"; glbPath: string | null; error: string | null };
+  model: {
+    status: "none" | "running" | "done" | "failed";
+    glbPath: string | null;
+    error: string | null;
+    /** 0..1 milestone floor while running, from workflow node events. */
+    progress?: number;
+    /** Human label for the current stage ("Sculpting the 3D model"). */
+    stage?: string | null;
+  };
   lore: unknown | null;
   discoveries: StoredDiscovery[];
   loreStatus: { status: "none" | "running" | "done" | "failed"; error: string | null };
@@ -74,7 +82,15 @@ export async function readState(): Promise<WorkshopState> {
   }
 }
 
-async function doPatch(patch: Partial<WorkshopState>): Promise<WorkshopState> {
+/** A patch may update just a few fields of the nested objects: doPatch has
+ * always merged them shallowly, so the type now says so. */
+export type WorkshopPatch = Omit<Partial<WorkshopState>, "model" | "loreStatus" | "upload"> & {
+  model?: Partial<WorkshopState["model"]>;
+  loreStatus?: Partial<WorkshopState["loreStatus"]>;
+  upload?: Partial<WorkshopState["upload"]>;
+};
+
+async function doPatch(patch: WorkshopPatch): Promise<WorkshopState> {
   const cur = await readState();
   const next: WorkshopState = {
     ...cur,
@@ -94,7 +110,7 @@ async function doPatch(patch: Partial<WorkshopState>): Promise<WorkshopState> {
 // Queueing patchState calls on a module-level promise chain ensures each
 // patch reads the state left by the previous one, rather than clobbering it.
 let writeChain: Promise<unknown> = Promise.resolve();
-export function patchState(patch: Partial<WorkshopState>): Promise<WorkshopState> {
+export function patchState(patch: WorkshopPatch): Promise<WorkshopState> {
   const run = writeChain.then(() => doPatch(patch));
   writeChain = run.catch(() => undefined);
   return run;

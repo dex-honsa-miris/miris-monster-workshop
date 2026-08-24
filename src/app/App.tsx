@@ -8,7 +8,7 @@ const IN_STACKBLITZ =
 import { flowPhase } from "./flow";
 import { Bank, Checklist, ConceptPanel, Dock, LorePanel, Note, PublishPanel, Working } from "./panels";
 import { useStatus } from "./useStatus";
-import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
+import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postSummonRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import * as THREE from "three";
 import { Scene } from "../scene/Scene";
 import { captureProbe } from "../scene/probe";
@@ -182,6 +182,12 @@ export function App(): React.ReactElement {
     })();
   }, [probing, refresh]);
 
+  const onRetrySummon = (): void => {
+    void run("The summoning would not restart", async () => {
+      await postSummonRetry();
+    }, "Restarting the summoning.");
+  };
+
   const onLoadMonster = (id: string): void => {
     void run("That one would not come back", async () => {
       await postLoadMonster(id);
@@ -297,7 +303,23 @@ export function App(): React.ReactElement {
           </div>
         )}
 
-        {phase === "summoning" && <p className="hint">Summoning your monster. A minute or two.</p>}
+        {phase === "summoning" && (
+          <p className="hint">
+            {status?.model.stage
+              ? `${status.model.stage}. Ultra detail takes several minutes.`
+              : "Summoning your monster in ultra detail. This takes several minutes."}
+          </p>
+        )}
+
+        {/* A summon that died (a timeout, a fal hiccup) must not strand the
+            attendee: the concept is already paid for, so offer to relaunch it
+            rather than sending them back to sketch from scratch. */}
+        {phase === "create" && status?.model.status === "failed" && (
+          <div className="row">
+            <p className="hint">The summoning failed: {status.model.error?.replace(/^Error:\s*/, "")}</p>
+            <button className="btn primary" disabled={busy} onClick={onRetrySummon}>Retry the summoning</button>
+          </div>
+        )}
 
         {(phase === "summoning" || phase === "reveal") && status?.lore.status === "failed" && (
           <div className="row">

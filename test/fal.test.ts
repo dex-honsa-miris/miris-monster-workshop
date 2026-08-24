@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { falQueue, generateConcept, generateModel, manifestMonster, parseManifestOutput, parseSketchOutput, sketchMonster, trimTexturePrompt } from "../server/fal";
+import { falQueue, generateConcept, generateModel, manifestMonster, parseManifestOutput, parseSketchOutput, sketchMonster, trimTexturePrompt, falWorkflowStream } from "../server/fal";
 
 // A scripted fetch: each call shifts the next response off the list.
 function scripted(responses: Array<{ status?: number; json?: unknown; buf?: ArrayBuffer }>): typeof fetch {
@@ -164,5 +164,46 @@ describe("trimTexturePrompt", () => {
   it("still returns something when there is no boundary to cut on", () => {
     const out = trimTexturePrompt("x".repeat(900));
     expect(out.length).toBe(600);
+  });
+});
+
+describe("falWorkflowStream", () => {
+  const sse = (chunks: string[]): typeof fetch =>
+    (async () => new Response(chunks.join(""), { status: 200, headers: { "content-type": "text/event-stream" } })) as unknown as typeof fetch;
+
+  it("parses CRLF-delimited node events, skips pings, returns the output", async () => {
+    // Byte-for-byte the shapes fal actually sends (verified live 2026-08-24).
+    const f = sse([
+      'data: {"type": "submit", "node_id": "lore", "app_id": "fal-ai/any-llm", "request_id": "r1"}\r\n\r\n',
+      ": ping\r\n\r\n",
+      'data: {"type": "completion", "node_id": "lore", "output": {"output": "{}"}}\r\n\r\n',
+      'data: {"type": "output", "output": {"model_url": "http://glb"}}\r\n\r\n',
+    ]);
+    const events: Array<{ type: string; node_id?: string }> = [];
+    const out = (await falWorkflowStream("workflows/d/m", {}, { key: "k", fetch: f }, (e) => events.push(e))) as { model_url: string };
+    expect(out.model_url).toBe("http://glb");
+    expect(events.map((e) => `${e.type}:${e.node_id ?? ""}`)).toEqual(["submit:lore", "completion:lore", "output:"]);
+  });
+
+  it("throws when the stream dies before an output event", async () => {
+    const f = sse(['data: {"type": "submit", "node_id": "lore"}\r\n\r\n']);
+    await expect(falWorkflowStream("workflows/d/m", {}, { key: "k", fetch: f })).rejects.toThrow(/without an output/);
+  });
+
+  it("surfaces a workflow error event as a failure", async () => {
+    const f = sse(['data: {"type": "error", "error": {"message": "boom"}}\r\n\r\n']);
+    await expect(falWorkflowStream("workflows/d/m", {}, { key: "k", fetch: f })).rejects.toThrow(/boom/);
+  });
+
+  it("handles one event split across two chunks", async () => {
+    // The decoder must buffer partial frames: real chunks split anywhere.
+    const body = 'data: {"type": "output", "output": {"ok": true}}\r\n\r\n';
+    const parts = [body.slice(0, 17), body.slice(17)];
+    const stream = new ReadableStream({
+      start(c) { for (const p of parts) c.enqueue(new TextEncoder().encode(p)); c.close(); },
+    });
+    const f = (async () => new Response(stream, { status: 200 })) as unknown as typeof fetch;
+    const out = (await falWorkflowStream("workflows/d/m", {}, { key: "k", fetch: f })) as { ok: boolean };
+    expect(out.ok).toBe(true);
   });
 });

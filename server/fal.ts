@@ -1,10 +1,28 @@
 import { ANNOTATE_SYSTEM_PROMPT, annotateIdentity, buildConceptPrompt, buildIconPrompt, LORE_SYSTEM_PROMPT, sanitizeUserPrompt } from "./guardrails";
 import { discoverySchema, loreSchema, type Discovery, type MonsterLore } from "./lore-schema";
 
-export interface FalDeps { key: string; fetch: typeof fetch; sleep?: (ms: number) => Promise<void> }
+export interface FalDeps {
+  key: string;
+  fetch: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  /** Use the workflow SSE endpoint for per-node progress events. Off by
+   * default so tests (which script plain JSON responses) keep the queue
+   * path; the live server turns it on. */
+  stream?: boolean;
+}
+
+/** One event from a workflow SSE stream. fal emits `submit` and `completion`
+ * per node, then a final `output` carrying the workflow result. */
+export interface WorkflowEvent { type: string; node_id?: string; output?: unknown; error?: unknown }
 
 const POLL_MS = 1500;
+/** Default wait for a queued job: image and LLM legs finish well inside it. */
 const TIMEOUT_MS = 6 * 60 * 1000;
+/** The 3D stage runs ultra_mode at 150k quad polys, which routinely takes
+ * longer than the default window. The old 6-minute cap was tuned for 30k
+ * standard generations, and once ultra went live it abandoned jobs that were
+ * still working -- billed, completed, and thrown away. */
+const TIMEOUT_3D_MS = 25 * 60 * 1000;
 const MODEL_IMAGE = "fal-ai/flux/schnell";
 // Meshy v7 (chosen 2026-08-21 over Trellis): game-asset topology, matte
 // output (metallic 0, roughness 0.8 measured), texture_prompt steering.
@@ -22,11 +40,71 @@ const MESHY_INPUT = {
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * Run a fal workflow over its SSE endpoint, surfacing per-node events.
+ *
+ * This is the only place fal exposes ANY progress: the queue status endpoint
+ * reports a bare IN_PROGRESS for both apps and workflows (verified
+ * empirically, logs=1 included), and Meshy's own percentage is swallowed
+ * entirely. Node submit/completion events at least mark real milestones.
+ * Mind the separators: events arrive delimited by CRLF pairs, and keepalive
+ * comments (": ping") every 15s.
+ */
+export async function falWorkflowStream(
+  workflowId: string,
+  input: unknown,
+  deps: FalDeps,
+  onEvent?: (e: WorkflowEvent) => void,
+  timeoutMs = TIMEOUT_3D_MS,
+): Promise<unknown> {
+  const res = await deps.fetch(`https://fal.run/${workflowId}/stream`, {
+    method: "POST",
+    headers: { Authorization: `Key ${deps.key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok || !res.body) throw new Error(`fal stream failed: ${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + timeoutMs;
+  let buf = "";
+  let output: unknown;
+  let sawOutput = false;
+  for (;;) {
+    if (Date.now() > deadline) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error(`fal job timed out after ${Math.round(timeoutMs / 60000)} minutes`);
+    }
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    for (;;) {
+      const m = buf.match(/\r?\n\r?\n/);
+      if (!m) break;
+      const chunk = buf.slice(0, m.index);
+      buf = buf.slice(m.index! + m[0].length);
+      const data = chunk
+        .split(/\r?\n/)
+        .filter((l) => l.startsWith("data:"))
+        .map((l) => l.slice(5).trim())
+        .join("");
+      if (!data) continue; // keepalive comment
+      let ev: WorkflowEvent;
+      try { ev = JSON.parse(data) as WorkflowEvent; } catch { continue; }
+      onEvent?.(ev);
+      if (ev.type === "error") throw new Error(`fal workflow error: ${JSON.stringify(ev.error ?? ev).slice(0, 300)}`);
+      if (ev.type === "output") { output = ev.output; sawOutput = true; }
+    }
+  }
+  if (!sawOutput) throw new Error("fal stream ended without an output event");
+  return output;
+}
+
 export async function falQueue(
   model: string,
   body: unknown,
   deps: FalDeps,
   onProgress?: (p: { status: string }) => void,
+  timeoutMs = TIMEOUT_MS,
 ): Promise<unknown> {
   const sleep = deps.sleep ?? wait;
   const headers = { Authorization: `Key ${deps.key}`, "Content-Type": "application/json" };
@@ -42,7 +120,7 @@ export async function falQueue(
     if (s.status === "FAILED" || s.status === "ERROR") throw new Error("fal job failed");
     await sleep(POLL_MS);
     elapsed += POLL_MS;
-    if (elapsed >= TIMEOUT_MS) throw new Error("fal job timed out");
+    if (elapsed >= timeoutMs) throw new Error(`fal job timed out after ${Math.round(timeoutMs / 60000)} minutes`);
   }
   const res = await deps.fetch(job.response_url, { headers });
   return res.json();
@@ -64,7 +142,7 @@ export async function generateModel(
   onProgress?: (p: { status: string }) => void,
   userText = "",
 ): Promise<{ glb: ArrayBuffer }> {
-  const out = (await falQueue(MODEL_3D, { image_url: imageUrl, texture_prompt: userText, ...MESHY_INPUT }, deps, onProgress)) as {
+  const out = (await falQueue(MODEL_3D, { image_url: imageUrl, texture_prompt: userText, ...MESHY_INPUT }, deps, onProgress, TIMEOUT_3D_MS)) as {
     model_glb?: { url?: string };
     model_mesh?: { url?: string };
   };
@@ -194,7 +272,7 @@ export async function manifestMonster(
   imageUrl: string,
   deps: FalDeps,
   workflowId?: string,
-  onProgress?: (p: { status: string }) => void,
+  onProgress?: (p: { status: string; node?: string; event?: string }) => void,
   /** The shaper's art-direction paragraph. Sent separately from `prompt`,
    * which still carries the player's own words: the lore and emblem legs read
    * that, and they should describe the creature the player asked for, not the
@@ -204,7 +282,15 @@ export async function manifestMonster(
   if (workflowId) {
     const input: Record<string, unknown> = { prompt: sanitizeUserPrompt(userText), image_url: imageUrl };
     if (texturePrompt) input.texture_prompt = trimTexturePrompt(texturePrompt);
-    const out = await falQueue(workflowId, input, deps, onProgress);
+    // The workflow's slowest leg is the 3D node, so the whole run gets the
+    // 3D window. Streamed when enabled (real milestones), queued otherwise.
+    const out = deps.stream
+      ? await falWorkflowStream(workflowId, input, deps, (e) => {
+          if (e.type === "submit" || e.type === "completion") {
+            onProgress?.({ status: "IN_PROGRESS", node: e.node_id, event: e.type });
+          }
+        }, TIMEOUT_3D_MS)
+      : await falQueue(workflowId, input, deps, onProgress, TIMEOUT_3D_MS);
     const { modelUrl, lore, iconUrl } = parseManifestOutput(out);
     const [glb, iconPng] = await Promise.all([
       download(modelUrl, deps),

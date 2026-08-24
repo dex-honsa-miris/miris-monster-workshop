@@ -20,8 +20,10 @@ import { FLASH_IN, revealFlash } from "./spell/reveal";
  * done and nothing in between, so the bar is an estimate, not a measurement:
  * it eases toward -- but never reaches -- SUMMON_CEILING, and only the real
  * "done" signal takes it to 1. That way a slow generation keeps moving
- * without ever lying that it has finished. */
-const SUMMON_SECONDS = 75;
+ * without ever lying that it has finished. Tuned for ultra_mode at 150k
+ * polys, which runs many minutes; the old 75s pace pinned the bar at the
+ * ceiling for most of the wait. */
+const SUMMON_SECONDS = 300;
 const SUMMON_CEILING = 0.94;
 /** A deliberate replay is not waiting on anything, so it fills at a watchable
  * pace instead of the real generation's crawl. */
@@ -60,6 +62,10 @@ interface SummonSpellProps {
   done: boolean;
   /** Replay: fill quickly rather than tracking a real generation. */
   fast: boolean;
+  /** Milestone floor from the workflow's node events (0..1). The bar never
+   * reads below what has actually happened, and the clock-based ease carries
+   * it through the long 3D stretch fal reports nothing for. */
+  floor: number;
   onFinished: () => void;
   /** Written every frame with the white-overlay amount for the creature. */
   flashRef: { current: number };
@@ -68,7 +74,9 @@ interface SummonSpellProps {
 }
 
 /** The summoning effect, driven from the render loop rather than from state. */
-function SummonSpell({ done, fast, onFinished, flashRef, onFlash }: SummonSpellProps): React.ReactElement {
+function SummonSpell({ done, fast, floor, onFinished, flashRef, onFlash }: SummonSpellProps): React.ReactElement {
+  const floorRef = useRef(floor);
+  floorRef.current = floor;
   const elapsed = useRef(0);
   const loader = useRef<SpellLoader | null>(null);
   const announced = useRef(false);
@@ -91,7 +99,8 @@ function SummonSpell({ done, fast, onFinished, flashRef, onFlash }: SummonSpellP
     // summon only reaches 1 when the backend says the model is done.
     if (fast) return Math.min(1, elapsed.current / REPLAY_SECONDS);
     if (doneRef.current) return 1;
-    return SUMMON_CEILING * (1 - Math.exp(-elapsed.current / SUMMON_SECONDS));
+    const eased = SUMMON_CEILING * (1 - Math.exp(-elapsed.current / SUMMON_SECONDS));
+    return Math.max(eased, Math.min(SUMMON_CEILING, floorRef.current));
   }, [fast]);
 
   return (
@@ -219,6 +228,7 @@ function Contents(props: SceneProps): React.ReactElement {
         <SummonSpell
           key={run?.key ?? 0}
           fast={run?.fast ?? false}
+          floor={props.status?.model.progress ?? 0}
           done={props.phase === "reveal"}
           onFinished={onFinished}
           onFlash={onFlash}
