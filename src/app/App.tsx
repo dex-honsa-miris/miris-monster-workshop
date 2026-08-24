@@ -6,8 +6,9 @@ import { checklistFrom } from "./checklist-model";
 const IN_STACKBLITZ =
   typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
+import { Bank, Checklist, ConceptPanel, Dock, LorePanel, Note, PublishPanel, Working } from "./panels";
 import { useStatus } from "./useStatus";
-import { fetchLore, postAnnotate, postApprove, postConcept, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
+import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import * as THREE from "three";
 import { Scene } from "../scene/Scene";
 import { captureProbe } from "../scene/probe";
@@ -15,6 +16,14 @@ import type { MonsterLore } from "../../server/lore-schema";
 import type { Concept } from "../../server/state";
 
 const GLB_URL = "/generated/monster.glb";
+const ICON_URL = "/generated/icon.png";
+
+// Rehearsal affordance, alongside ?demo-error. Bare ?demo-summon holds the
+// stage in the summoning phase indefinitely; ?demo-summon=4 holds it for four
+// seconds and then releases to the real phase, which plays the whole
+// completion beat and the reveal flash without waiting on a generation.
+const DEMO_SUMMON =
+  typeof location !== "undefined" ? new URLSearchParams(location.search).get("demo-summon") : null;
 
 interface ConceptState extends Pick<Concept, "id" | "prompt" | "imageUrl"> {
   rerolls: number;
@@ -36,8 +45,24 @@ export function App(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ title: string; body: string } | null>(null);
   const [uploadedId, setUploadedId] = useState<string | null>(null);
+  const [replayNonce, setReplayNonce] = useState(0);
+  // A sketched concept that has not been summoned yet. At reveal this is what
+  // tells the stage to show the new concept instead of the current monster's
+  // codex, since the phase is still "reveal" until the summon starts.
+  const [pendingConcept, setPendingConcept] = useState(false);
+  // What the current wait is for. Set alongside busy so the indicator can
+  // name the step instead of spinning anonymously.
+  const [busyLabel, setBusyLabel] = useState("Working");
 
-  const phase = flowPhase(status);
+  const [demoHold, setDemoHold] = useState(DEMO_SUMMON !== null);
+  useEffect(() => {
+    const seconds = Number(DEMO_SUMMON);
+    if (!seconds) return;
+    const t = setTimeout(() => setDemoHold(false), seconds * 1000);
+    return () => clearTimeout(t);
+  }, []);
+  // Visual only: no pipeline call is made or skipped.
+  const phase = demoHold ? "summoning" : flowPhase(status);
   const loreReady = status?.lore.ready ?? false;
   const modelReady = status?.model.status === "done";
   const assetId = uploadedId ?? status?.upload.assetId ?? null;
@@ -65,9 +90,10 @@ export function App(): React.ReactElement {
       }
     })();
     return () => { cancelled = true; };
-  }, [phase, loreReady]);
+  }, [phase, loreReady, status?.currentMonsterId]);
 
-  const run = useCallback(async (title: string, fn: () => Promise<void>): Promise<void> => {
+  const run = useCallback(async (title: string, fn: () => Promise<void>, label = "Working"): Promise<void> => {
+    setBusyLabel(label);
     setBusy(true);
     try {
       await fn();
@@ -86,13 +112,16 @@ export function App(): React.ReactElement {
     void run("That concept did not come through", async () => {
       const c = await postConcept(text);
       setConcept({ id: c.id, prompt: c.prompt, imageUrl: c.imageUrl, rerolls: (status?.concept.count ?? 0) + 1 });
-    });
+      setPendingConcept(true);
+    }, "Sketching your monster. This takes a few seconds.");
   };
 
   const onApprove = (): void => {
     if (!concept) return;
     void run("The summoning did not start", async () => {
       await postApprove(concept.id);
+      setPendingConcept(false);
+      setPinned(new Set());
     });
   };
 
@@ -153,6 +182,23 @@ export function App(): React.ReactElement {
     })();
   }, [probing, refresh]);
 
+  const onLoadMonster = (id: string): void => {
+    void run("That one would not come back", async () => {
+      await postLoadMonster(id);
+      setLore(null);        // refetched by the reveal effect for the new creature
+      setPinned(new Set());
+      setConcept(null);
+      setPendingConcept(false);
+    }, "Bringing it back to the pedestal.");
+  };
+
+  const onClearDiscoveries = (): void => {
+    void run("The notes would not clear", async () => {
+      await postClearDiscoveries();
+      setPinned(new Set());
+    });
+  };
+
   const onHotspotClick = useCallback((id: string): void => {
     setPinned((prev) => {
       const next = new Set(prev);
@@ -172,17 +218,35 @@ export function App(): React.ReactElement {
     <>
       <Scene
         phase={phase}
-        phases={checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })}
+        replayNonce={replayNonce}
         status={status}
-        lore={lore}
-        concept={concept}
-        note={note}
-        monsterUrl={modelReady ? GLB_URL : null}
+        monsterUrl={modelReady ? `${GLB_URL}?v=${status?.currentMonsterId ?? "0"}` : null}
         pinned={pinned}
         onPickPoint={onPickPoint}
         onHotspotClick={onHotspotClick}
         onCanvasReady={onCanvasReady}
       />
+      <Dock side="left">
+        <Checklist phases={checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })} />
+        <Bank entries={status?.monsters ?? []} busy={busy} onLoad={onLoadMonster} />
+      </Dock>
+
+      <Dock side="right">
+        {phase === "reveal" && lore && !pendingConcept
+          ? <LorePanel lore={lore} iconUrl={ICON_URL} />
+          : concept && <ConceptPanel concept={concept} />}
+        {phase === "reveal" && !assetId && (
+          <PublishPanel
+            glbHref={GLB_URL}
+            portalHref="https://app.miris.com"
+            assetId={assetIdDraft}
+            onAssetIdChange={setAssetIdDraft}
+            onSave={onSaveAssetId}
+            busy={busy}
+          />
+        )}
+      </Dock>
+
       <header
         className="masthead"
         data-compact={phase === "summoning" || phase === "reveal" ? "true" : undefined}
@@ -201,27 +265,32 @@ export function App(): React.ReactElement {
       </header>
 
       <div className="overlay">
+        {note && <Note note={note} onDismiss={() => setNote(null)} />}
+        {busy && <Working label={busyLabel} />}
+
         {phase === "setup" && (
           <p className="hint">Add your fal key to .env and this panel wakes up on its own. Stuck? Run npm run doctor in the terminal.</p>
         )}
 
-        {phase === "create" && (
+        {(phase === "create" || (phase === "reveal" && !pendingConcept)) && (
           <div className="row">
             <input
               className="prompt"
               value={prompt}
-              placeholder="A moss-covered lantern beast with too many eyes"
+              placeholder={phase === "reveal"
+                ? "Describe another monster"
+                : "A moss-covered lantern beast with too many eyes"}
               disabled={busy}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") onGenerate(); }}
             />
             <button className="btn primary" disabled={busy || !prompt.trim()} onClick={onGenerate}>
-              {busy ? "Sketching" : "Sketch it"}
+              {busy ? "Sketching" : phase === "reveal" ? "Sketch another" : "Sketch it"}
             </button>
           </div>
         )}
 
-        {phase === "create" && concept && (
+        {(phase === "create" || pendingConcept) && concept && (
           <div className="row">
             <button className="btn" disabled={busy} onClick={onGenerate}>Reroll</button>
             <button className="btn primary" disabled={busy} onClick={onApprove}>Summon this one</button>
@@ -237,41 +306,19 @@ export function App(): React.ReactElement {
           </div>
         )}
 
-        {phase === "reveal" && (
-          <p className="hint">
-            {probing
-              ? "Looking closely at that part..."
-              : (status?.discoveries.length ?? 0) === 0
-                ? "Your monster has no notes yet. Click any part of it to find out what that is."
-                : `${status?.discoveries.length} discovered. Keep clicking, or hover a marker to read it.`}
-          </p>
-        )}
-
-        {phase === "reveal" && !assetId && (
-          // One panel, one flow: the publish steps used to be three loose
-          // siblings that could crowd each other on short or wide windows.
-          <div className="panel">
-            <p className="panel-title">Publish it</p>
+        {phase === "reveal" && !pendingConcept && (
+          <div className="row">
             <p className="hint">
-              Download the model, upload it in the Miris portal under your account, then paste the asset id here.
+              {probing
+                ? "Looking closely at that part..."
+                : (status?.discoveries.length ?? 0) === 0
+                  ? "Your monster has no notes yet. Click any part of it to find out what that is."
+                  : `${status?.discoveries.length} discovered. Keep clicking, or hover a marker to read it.`}
             </p>
-            <div className="row">
-              <a className="btn" href="/generated/monster.glb" download="monster.glb">Download monster.glb</a>
-              <a className="btn" href="https://app.miris.com" target="_blank" rel="noopener">Open the Miris portal</a>
-            </div>
-            <div className="row">
-              <input
-                className="prompt"
-                value={assetIdDraft}
-                placeholder="Paste your Miris asset id"
-                disabled={busy}
-                onChange={(e) => setAssetIdDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") onSaveAssetId(); }}
-              />
-              <button className="btn primary" disabled={busy || !assetIdDraft.trim()} onClick={onSaveAssetId}>
-                {busy ? "Saving" : "Save asset id"}
-              </button>
-            </div>
+            <button className="btn quiet" onClick={() => setReplayNonce((n) => n + 1)}>Replay the summoning</button>
+            {(status?.discoveries.length ?? 0) > 0 && (
+              <button className="btn quiet" disabled={busy} onClick={onClearDiscoveries}>Clear notes</button>
+            )}
           </div>
         )}
 

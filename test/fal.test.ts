@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { falQueue, generateConcept, generateModel, manifestMonster, parseManifestOutput, parseSketchOutput, sketchMonster } from "../server/fal";
+import { falQueue, generateConcept, generateModel, manifestMonster, parseManifestOutput, parseSketchOutput, sketchMonster, trimTexturePrompt } from "../server/fal";
 
 // A scripted fetch: each call shifts the next response off the list.
 function scripted(responses: Array<{ status?: number; json?: unknown; buf?: ArrayBuffer }>): typeof fetch {
@@ -138,5 +138,31 @@ describe("manifestMonster (workflow path)", () => {
     expect(new TextDecoder().decode(m.glb)).toBe("GLB");
     expect(m.lore?.name).toBe("Gloamroot");
     expect(new TextDecoder().decode(m.iconPng!)).toBe("PNG");
+  });
+});
+
+describe("trimTexturePrompt", () => {
+  it("passes a normal prompt through, collapsed to single spaces", () => {
+    expect(trimTexturePrompt("  a mossy   lantern\nbeast  ")).toBe("a mossy lantern beast");
+  });
+
+  it("stays inside Meshy's 600 character cap", () => {
+    // The shaper writes a full art-direction paragraph; the API rejects past 600.
+    const long = "stylized fantasy creature, ".repeat(60);
+    const out = trimTexturePrompt(long);
+    expect(out.length).toBeLessThanOrEqual(600);
+  });
+
+  it("cuts on a boundary rather than mid-word", () => {
+    const long = "alpha bravo charlie delta echo foxtrot golf hotel india juliet ".repeat(20);
+    const out = trimTexturePrompt(long);
+    expect(out.length).toBeLessThanOrEqual(600);
+    expect(long.startsWith(out)).toBe(true);
+    expect(out.endsWith(" ")).toBe(false);
+  });
+
+  it("still returns something when there is no boundary to cut on", () => {
+    const out = trimTexturePrompt("x".repeat(900));
+    expect(out.length).toBe(600);
   });
 });

@@ -1,84 +1,150 @@
 // The summoning chamber as R3F. Everything the old SceneDirector/SceneStage
 // pair did imperatively now lives here as components: lights, the pedestal,
 // the ember ring, the HUD cards, and orbit controls from drei.
-import { OrbitControls } from "@react-three/drei";
+import { Environment, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useMemo, useRef } from "react";
+import { EffectComposer, Select, Selection, SelectiveBloom, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import type { SelectiveBloomEffect } from "postprocessing";
 import * as THREE from "three";
 import type { WorkshopStatus } from "../../server/status";
-import type { MonsterLore } from "../../server/lore-schema";
-import type { Phase } from "../app/checklist-model";
 import type { FlowPhase } from "../app/flow";
-import { Card } from "./Card";
-import { paintChecklist, paintConcept, paintMessage, paintStats, type CanvasCard } from "./cards";
 import { Monster } from "./Monster";
 import { PedestalMesh } from "./PedestalMesh";
-import { RitualRing } from "./RitualRing";
+import type { SpellLoader } from "./spell/SpellLoader";
+import { SpellLoaderView } from "./spell/SpellLoaderView";
+import { FLASH_IN, revealFlash } from "./spell/reveal";
 
-const CARD_DEPTH = 3.9;
-const EDGE_CARD_MAX = 0.95;
+/** Roughly how long a Meshy generation takes. The backend reports running or
+ * done and nothing in between, so the bar is an estimate, not a measurement:
+ * it eases toward -- but never reaches -- SUMMON_CEILING, and only the real
+ * "done" signal takes it to 1. That way a slow generation keeps moving
+ * without ever lying that it has finished. */
+const SUMMON_SECONDS = 75;
+const SUMMON_CEILING = 0.94;
+/** A deliberate replay is not waiting on anything, so it fills at a watchable
+ * pace instead of the real generation's crawl. */
+const REPLAY_SECONDS = 2.6;
 
-/** Pins a card to a screen edge: positioned from the camera's own basis every
- * frame, so orbiting never flings the HUD into the scene. */
-function HudCard(props: {
-  side: -1 | 0 | 1;
-  up: number;
-  worldWidth: number;
-  worldHeight: number;
-  paint: (c: CanvasCard) => void;
-  repaintKey?: unknown;
-  visible: boolean;
-}): React.ReactElement {
-  const group = useRef<THREE.Group>(null);
-  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+/** Image-based lighting for the creature. A white chapel: broad soft fill
+ * with directional windows, which flatters a matte game asset far more than
+ * the analytic lights alone did. */
+const ENV_FILE = "/env/white-chapel.hdr";
+const ENV_INTENSITY = 0.62;
 
-  useFrame(() => {
-    const g = group.current;
-    if (!g || !props.visible) return;
-    const halfView = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * CARD_DEPTH * camera.aspect;
-    const limit = props.side === 0 ? 2 * halfView * 0.62 : 2 * halfView - 0.16;
-    const s = Math.max(0.05, Math.min(props.side === 0 ? 0.8 : EDGE_CARD_MAX, limit / props.worldWidth));
-    g.scale.setScalar(s);
-    const halfCard = (props.worldWidth * s) / 2;
-    const x = props.side === 0 ? 0 : props.side * Math.max(0, halfView - halfCard - 0.06);
-
-    camera.updateMatrixWorld();
-    const m = camera.matrixWorld;
-    const right = new THREE.Vector3().setFromMatrixColumn(m, 0);
-    const up = new THREE.Vector3().setFromMatrixColumn(m, 1);
-    const forward = new THREE.Vector3().setFromMatrixColumn(m, 2).negate();
-    g.position.copy(camera.position)
-      .addScaledVector(forward, CARD_DEPTH)
-      .addScaledVector(right, x)
-      .addScaledVector(up, props.up);
-    g.quaternion.copy(camera.quaternion);
-  });
-
-  return (
-    <group ref={group} visible={props.visible} userData={{ hideInProbe: true }}>
-      <Card
-        paint={props.paint}
-        repaintKey={props.repaintKey}
-        worldWidth={props.worldWidth}
-        worldHeight={props.worldHeight}
-        billboard={false}
-      />
-    </group>
-  );
-}
+/** Bloom while the cage is merely burning. */
+const BLOOM_BASE = 1.6;
+/** ...and at the peak of the reveal flash, where the white creature is meant
+ * to blow out rather than merely glow. */
+const BLOOM_FLASH = 4.5;
+/** Held constant through the flash. Ramping it down was an attempt to pull
+ * the creature into the bloom, but at FLASH_GAIN the creature sits far above
+ * any threshold already; all a lower cut-off does is drag every dim thing in
+ * the frame into the glow, which floods the whole stage white. */
+const BLOOM_THRESHOLD = 0.3;
 
 export interface SceneProps {
   phase: FlowPhase;
-  phases: Phase[];
+  /** Increment to replay the summoning. 0 or undefined never replays. */
+  replayNonce?: number;
   status: WorkshopStatus | null;
-  lore: MonsterLore | null;
-  concept: { imageUrl: string; prompt: string; rerolls: number } | null;
-  note: { title: string; body: string } | null;
   monsterUrl: string | null;
   pinned: Set<string>;
   onPickPoint: (world: THREE.Vector3, local: THREE.Vector3) => void;
   onHotspotClick: (id: string) => void;
   onCanvasReady?: (gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) => void;
+}
+
+interface SummonSpellProps {
+  done: boolean;
+  /** Replay: fill quickly rather than tracking a real generation. */
+  fast: boolean;
+  onFinished: () => void;
+  /** Written every frame with the white-overlay amount for the creature. */
+  flashRef: { current: number };
+  /** Fired once, when the flash begins and the creature should be mounted. */
+  onFlash: () => void;
+}
+
+/** The summoning effect, driven from the render loop rather than from state. */
+function SummonSpell({ done, fast, onFinished, flashRef, onFlash }: SummonSpellProps): React.ReactElement {
+  const elapsed = useRef(0);
+  const loader = useRef<SpellLoader | null>(null);
+  const announced = useRef(false);
+  const doneRef = useRef(done);
+  doneRef.current = done;
+
+  useFrame((_, dt) => {
+    elapsed.current += Math.min(0.05, dt);
+    const burst = loader.current?.burst ?? null;
+    flashRef.current = revealFlash(burst);
+    // Mount the creature at the snap, one beat before the white peaks, so it
+    // is already in the frame when the light burns off it.
+    if (!announced.current && burst !== null && burst >= FLASH_IN) {
+      announced.current = true;
+      onFlash();
+    }
+  });
+  const source = useCallback(() => {
+    // A replay drives the bar itself and finishes on its own clock; a real
+    // summon only reaches 1 when the backend says the model is done.
+    if (fast) return Math.min(1, elapsed.current / REPLAY_SECONDS);
+    if (doneRef.current) return 1;
+    return SUMMON_CEILING * (1 - Math.exp(-elapsed.current / SUMMON_SECONDS));
+  }, [fast]);
+
+  return (
+    <Select enabled>
+      <SpellLoaderView
+        progressSource={source}
+        onComplete={onFinished}
+        onReady={(l) => { loader.current = l; }}
+        // Sized to the space the monster will occupy: the base sigil sits on
+        // the pedestal top (y 0.5) and the cage encloses the creature.
+        radius={0.78}
+        height={1.45}
+        position={[0, 0.5, 0]}
+      />
+    </Select>
+  );
+}
+
+/** Selective bloom, mounted only while the spell is on screen: a global bloom
+ * would set the HUD cards' white text glowing, and once the summon is over the
+ * scene should render exactly as it did before this effect existed.
+ *
+ * Intensity and threshold are pushed straight onto the effect each frame
+ * rather than passed as props, so the flash ramp costs no React renders. */
+function SummonBloom({ flashRef }: { flashRef: { current: number } }): React.ReactElement {
+  const bloom = useRef<SelectiveBloomEffect | null>(null);
+
+  useFrame(() => {
+    const b = bloom.current;
+    if (!b) return;
+    const f = flashRef.current;
+    b.intensity = BLOOM_BASE + (BLOOM_FLASH - BLOOM_BASE) * f;
+  });
+
+  return (
+    <EffectComposer autoClear={false} multisampling={4}>
+      <SelectiveBloom
+        ref={bloom}
+        intensity={BLOOM_BASE}
+        luminanceThreshold={BLOOM_THRESHOLD}
+        luminanceSmoothing={0.24}
+        mipmapBlur
+        radius={0.85}
+      />
+      {/* Mounting a composer switches the renderer to NoToneMapping, because
+          postprocessing expects to tone map as a pass. Without this the scene
+          rendered without ACES for the whole summon and snapped back to it the
+          instant the composer unmounted -- a visible step in brightness and
+          colour exactly at the hand-off. Matching the canvas's own tone
+          mapping here makes mounting and unmounting invisible. */}
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+    </EffectComposer>
+  );
 }
 
 function Contents(props: SceneProps): React.ReactElement {
@@ -91,27 +157,76 @@ function Contents(props: SceneProps): React.ReactElement {
     props.onCanvasReady(gl, scene, camera);
   }
 
-  const paintChecklistCard = useMemo(() => (c: CanvasCard) => paintChecklist(c, props.phases), [props.phases]);
-  const paintStatsCard = useMemo(() => (c: CanvasCard) => { if (props.lore) paintStats(c, props.lore); }, [props.lore]);
-  const paintConceptCard = useMemo(
-    () => (c: CanvasCard) => {
-      if (props.concept) paintConcept(c, { imageBitmap: null, imageUrl: props.concept.imageUrl, prompt: props.concept.prompt, rerolls: props.concept.rerolls });
-    },
-    [props.concept],
-  );
-  const paintMessageCard = useMemo(() => (c: CanvasCard) => { if (props.note) paintMessage(c, props.note); }, [props.note]);
+  // A session that opens straight into reveal has nothing to summon, so the
+  // effect is skipped rather than replayed on every refresh.
+  // One "run" per summoning, whether that is the first monster, a regenerate
+  // from the reveal, or a deliberate replay. A finished loader hides itself
+  // for good, so starting another means building a new one: the key does that.
+  const runSeq = useRef(0);
+  const [run, setRun] = useState<{ key: number; fast: boolean } | null>(null);
+  const [summonFinished, setSummonFinished] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const onFinished = useCallback(() => setSummonFinished(true), []);
+  const onFlash = useCallback(() => setFlashing(true), []);
+  // Read every frame by the monster's white overlay and by the bloom ramp;
+  // a ref rather than state, because it changes on every one of them.
+  const flashRef = useRef(0);
+
+  const beginRun = useCallback((fast: boolean) => {
+    flashRef.current = 0;
+    setSummonFinished(false);
+    setFlashing(false);
+    runSeq.current += 1;
+    setRun({ key: runSeq.current, fast });
+  }, []);
+
+  // Entering the summoning phase always starts a run -- the first monster and
+  // every regenerate alike. Opening a session straight into reveal does not:
+  // a finished monster should not re-run its own summoning on every refresh,
+  // so replaying that is something you ask for.
+  const summoning = props.phase === "summoning";
+  useEffect(() => { if (summoning) beginRun(false); }, [summoning, beginRun]);
+
+  const nonce = props.replayNonce ?? 0;
+  useEffect(() => { if (nonce > 0) beginRun(true); }, [nonce, beginRun]);
+
+  const showSpell = run !== null && !summonFinished;
+  // The creature arrives ON the flash, not after it: the spell keeps
+  // dissipating over a monster that is already there, which is what makes the
+  // hand-off read as a reveal instead of a swap.
+  const showMonster = props.phase === "reveal" && (run === null || flashing || summonFinished);
 
   return (
     <>
-      <hemisphereLight args={[0xdfe2ea, 0x14161c, 1.5]} />
-      <spotLight position={[2.5, 4.5, 2.5]} color={0xf4f5f8} intensity={90} distance={14} angle={0.8} penumbra={0.5} />
-      <directionalLight position={[-2.5, 2.2, 3.2]} color={0xdfe4ef} intensity={1.4} />
-      <directionalLight position={[0, 2.5, -3.5]} color={0xaab2c4} intensity={0.8} />
+      {/* Image-based lighting. Not shown as a background: the chamber's ground
+          is the brand's near-black, and the chapel is here to light the
+          creature, not to become the room. */}
+      <Suspense fallback={null}>
+        <Environment files={ENV_FILE} environmentIntensity={ENV_INTENSITY} />
+      </Suspense>
+
+      {/* The environment now does the ambient fill the hemisphere light used
+          to fake, so the analytic lights are back to doing only what image
+          based lighting cannot: a key with a falloff that pools on the
+          pedestal, and two rims for shape. Left at their old strengths they
+          simply added to the IBL and washed the chamber grey. */}
+      <spotLight position={[2.5, 4.5, 2.5]} color={0xf4f5f8} intensity={42} distance={14} angle={0.8} penumbra={0.5} />
+      <directionalLight position={[-2.5, 2.2, 3.2]} color={0xdfe4ef} intensity={0.45} />
+      <directionalLight position={[0, 2.5, -3.5]} color={0xaab2c4} intensity={0.3} />
 
       <PedestalMesh />
-      <RitualRing busy={props.phase === "summoning"} />
+      {showSpell && (
+        <SummonSpell
+          key={run?.key ?? 0}
+          fast={run?.fast ?? false}
+          done={props.phase === "reveal"}
+          onFinished={onFinished}
+          onFlash={onFlash}
+          flashRef={flashRef}
+        />
+      )}
 
-      {props.monsterUrl && props.phase === "reveal" && (
+      {props.monsterUrl && showMonster && (
         <Suspense fallback={null}>
           <Monster
             url={props.monsterUrl}
@@ -119,14 +234,15 @@ function Contents(props: SceneProps): React.ReactElement {
             pinned={props.pinned}
             onPickPoint={props.onPickPoint}
             onHotspotClick={props.onHotspotClick}
+            flashRef={run === null ? undefined : flashRef}
           />
         </Suspense>
       )}
 
-      <HudCard side={-1} up={0.1} worldWidth={1.35} worldHeight={1.5} paint={paintChecklistCard} repaintKey={props.phases} visible />
-      <HudCard side={1} up={0.06} worldWidth={1.3} worldHeight={1.62} paint={paintStatsCard} repaintKey={props.lore} visible={props.phase === "reveal" && !!props.lore} />
-      <HudCard side={0} up={0.08} worldWidth={1.1} worldHeight={1.4} paint={paintConceptCard} repaintKey={props.concept} visible={!!props.concept && (props.phase === "create" || props.phase === "summoning")} />
-      <HudCard side={0} up={0.5} worldWidth={1.5} worldHeight={0.75} paint={paintMessageCard} repaintKey={props.note} visible={!!props.note} />
+      {/* Selective, and mounted only while the spell is on screen: a global
+          bloom would set the HUD cards' white text glowing, and the reveal
+          should render exactly as it did before this effect existed. */}
+      {showSpell && <SummonBloom flashRef={flashRef} />}
 
       <OrbitControls
         target={[0, 1, 0]}
@@ -153,7 +269,9 @@ export function Scene(props: SceneProps): React.ReactElement {
       onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; }}
       style={{ position: "fixed", inset: 0, touchAction: "none" }}
     >
-      <Contents {...props} />
+      <Selection>
+        <Contents {...props} />
+      </Selection>
     </Canvas>
   );
 }

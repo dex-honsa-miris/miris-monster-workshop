@@ -115,10 +115,26 @@ function firstImageUrl(o: Record<string, unknown>): string | null {
   );
 }
 
-export function parseSketchOutput(raw: unknown): { imageUrl: string } {
-  const url = firstImageUrl((raw ?? {}) as Record<string, unknown>);
+/** Meshy caps texture_prompt at 600 characters. */
+const TEXTURE_PROMPT_MAX = 600;
+
+export function trimTexturePrompt(text: string): string {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (clean.length <= TEXTURE_PROMPT_MAX) return clean;
+  // Cut on a sentence or clause boundary so the tail is not a half word.
+  const cut = clean.slice(0, TEXTURE_PROMPT_MAX);
+  const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf(", "), cut.lastIndexOf(" "));
+  return (stop > TEXTURE_PROMPT_MAX * 0.6 ? cut.slice(0, stop) : cut).trim();
+}
+
+export function parseSketchOutput(raw: unknown): { imageUrl: string; styledPrompt: string | null } {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const url = firstImageUrl(o);
   if (!url) throw new Error("workflow returned no image (expected image_url, image.url, or images[0].url)");
-  return { imageUrl: url };
+  // The shaper's output: the art-direction paragraph that produced the image.
+  // The texturing stage wants it too, and until now it was being discarded.
+  const styled = typeof o.styled_prompt === "string" ? o.styled_prompt.trim() : "";
+  return { imageUrl: url, styledPrompt: styled || null };
 }
 
 export function parseManifestOutput(raw: unknown): { modelUrl: string; lore: MonsterLore | null; iconUrl: string | null } {
@@ -157,12 +173,12 @@ export async function sketchMonster(
   userText: string,
   deps: FalDeps,
   workflowId?: string,
-): Promise<{ imageUrl: string }> {
+): Promise<{ imageUrl: string; styledPrompt: string | null }> {
   if (workflowId) {
     const out = await falQueue(workflowId, { prompt: sanitizeUserPrompt(userText) }, deps);
     return parseSketchOutput(out);
   }
-  return generateConcept(userText, deps);
+  return { ...(await generateConcept(userText, deps)), styledPrompt: null };
 }
 
 export interface Manifest { glb: ArrayBuffer; lore: MonsterLore | null; iconPng: ArrayBuffer | null }
@@ -179,9 +195,16 @@ export async function manifestMonster(
   deps: FalDeps,
   workflowId?: string,
   onProgress?: (p: { status: string }) => void,
+  /** The shaper's art-direction paragraph. Sent separately from `prompt`,
+   * which still carries the player's own words: the lore and emblem legs read
+   * that, and they should describe the creature the player asked for, not the
+   * image prompt that drew it. */
+  texturePrompt?: string | null,
 ): Promise<Manifest> {
   if (workflowId) {
-    const out = await falQueue(workflowId, { prompt: sanitizeUserPrompt(userText), image_url: imageUrl }, deps, onProgress);
+    const input: Record<string, unknown> = { prompt: sanitizeUserPrompt(userText), image_url: imageUrl };
+    if (texturePrompt) input.texture_prompt = trimTexturePrompt(texturePrompt);
+    const out = await falQueue(workflowId, input, deps, onProgress);
     const { modelUrl, lore, iconUrl } = parseManifestOutput(out);
     const [glb, iconPng] = await Promise.all([
       download(modelUrl, deps),

@@ -17,6 +17,10 @@ export const postAssetId = (assetId: string): Promise<{ assetId: string }> => ca
 export const postAnnotate = (payload: { closeup: string; context: string; point: [number, number, number] }): Promise<{
   id: string; label: string; blurb: string; slot: string; seen: string; point: [number, number, number];
 }> => call("/api/annotate", post(payload));
+export const postClearDiscoveries = (): Promise<{ discoveries: [] }> =>
+  call("/api/discoveries/clear", post({}));
+export const postLoadMonster = (id: string): Promise<{ id: string }> =>
+  call("/api/monsters/load", post({ id }));
 export const postDeployedUrl = (url: string): Promise<{ url: string }> => call("/api/deployed-url", post({ url }));
 export const postLoreRetry = (): Promise<{ started: boolean }> => call("/api/lore/retry", post({}));
 export const fetchLore = async (): Promise<MonsterLore | null> => {

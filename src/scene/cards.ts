@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { annotationMarkup, checklistMarkup, conceptMarkup, messageMarkup, statsMarkup } from "./card-html";
-import type { ChecklistItem, Phase } from "../app/checklist-model";
+import { annotationMarkup, statsMarkup } from "./card-html";
 import type { MonsterLore } from "../../server/lore-schema";
 
 export function wrapText(text: string, maxChars: number): string[] {
@@ -22,28 +21,14 @@ export function wrapText(text: string, maxChars: number): string[] {
   return lines;
 }
 
-// Miris brand (miris.com): cool near-black, white ink, Geist + Geist Mono,
-// vermilion #ff3500 spent only on live activity and attention.
+// Miris brand (miris.com): cool near-black, white ink, Geist. Only the
+// annotation card is painted here now -- the screen-pinned panels are DOM
+// (src/app/panels.tsx), so the palette this file needs is small.
 const INK = "#ffffff";
 const PANEL = "#111215";
-const ACCENT = "#ff3500";
 const MUTED = "#9e9d9f";
-const DIM = "#55565b";
 const LINE = "#26272c";
-const STATE_COLOR = { todo: DIM, doing: ACCENT, done: "#6da583", error: ACCENT } as const;
 const SANS = '"Geist", system-ui, sans-serif';
-const MONO = '"Geist Mono", ui-monospace, Menlo, monospace';
-
-/** Tracked uppercase mono, the brand's eyebrow register (miris.com section
- * labels). Canvas letterSpacing is Chromium 99+; elsewhere it renders
- * untracked, which is fine. */
-function kicker(ctx: CanvasRenderingContext2D, px: number): void {
-  ctx.font = `500 ${px}px ${MONO}`;
-  try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "3px"; } catch { /* untracked */ }
-}
-function resetTracking(ctx: CanvasRenderingContext2D): void {
-  try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px"; } catch { /* noop */ }
-}
 
 // --- WICG html-in-canvas (chrome://flags/#canvas-draw-element) ---------------
 // When the API exists, cards rasterize LIVE HTML elements into their textures
@@ -176,85 +161,6 @@ function panel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.stroke();
 }
 
-// --- checklist layout -------------------------------------------------------
-// The layout is a pure function so the director can hit-test pointer events
-// against the SAME row positions the painter draws, and so tests can cover it
-// without a canvas. Painter and hit-test must never compute geometry twice.
-
-export interface ChecklistRow { id: string; href?: string; y0: number; y1: number }
-interface ChecklistEntry {
-  kind: "phase" | "item";
-  y: number;
-  title?: string;
-  item?: ChecklistItem;
-  detailLines?: string[];
-}
-
-export function layoutChecklist(phases: Phase[]): { entries: ChecklistEntry[]; rows: ChecklistRow[] } {
-  const entries: ChecklistEntry[] = [];
-  const rows: ChecklistRow[] = [];
-  let y = 52;
-  for (const phase of phases) {
-    entries.push({ kind: "phase", y, title: phase.title });
-    y += 36;
-    for (const item of phase.items) {
-      const detailLines = item.detail && item.state === "error" ? wrapText(item.detail, 52) : [];
-      entries.push({ kind: "item", y, item, detailLines });
-      rows.push({ id: item.id, href: item.href, y0: y - 24, y1: y + 10 });
-      y += 32 + detailLines.length * 23;
-    }
-    y += 18;
-  }
-  return { entries, rows };
-}
-
-/** The row under a canvas-space point, or null. x only needs to be on the card body. */
-export function checklistRowAt(rows: ChecklistRow[], xPx: number, yPx: number, cardWidth: number): ChecklistRow | null {
-  if (xPx < 16 || xPx > cardWidth - 16) return null;
-  return rows.find((r) => yPx >= r.y0 && yPx <= r.y1) ?? null;
-}
-
-export function paintChecklist(card: CanvasCard, phases: Phase[], hoverId: string | null = null): void {
-  if (htmlInCanvasSupported) { card.paintHtml(checklistMarkup(phases, hoverId)); return; }
-  const { entries } = layoutChecklist(phases);
-  card.paint((ctx, w, h) => {
-    panel(ctx, w, h);
-    for (const e of entries) {
-      if (e.kind === "phase") {
-        ctx.fillStyle = MUTED;
-        kicker(ctx, 17);
-        ctx.fillText(e.title!.toUpperCase(), 28, e.y);
-        resetTracking(ctx);
-        continue;
-      }
-      const item = e.item!;
-      const hovered = hoverId !== null && item.id === hoverId;
-      if (hovered) {
-        ctx.fillStyle = "#1a1b1f";
-        ctx.beginPath();
-        ctx.roundRect(20, e.y - 24, w - 40, 34, 8);
-        ctx.fill();
-      }
-      ctx.font = `25px ${SANS}`;
-      ctx.fillStyle = STATE_COLOR[item.state];
-      ctx.fillText(item.state === "done" ? "✓" : item.state === "error" ? "✗" : item.state === "doing" ? "◌" : "·", 28, e.y);
-      ctx.fillStyle = hovered ? INK : item.state === "done" ? "#828386" : INK;
-      ctx.fillText(item.label, 54, e.y);
-      if (item.href) {
-        // A quiet affordance: linked rows carry a small arrow, brighter on hover.
-        ctx.fillStyle = hovered ? ACCENT : DIM;
-        ctx.fillText("→", w - 44, e.y);
-      }
-      if (e.detailLines!.length) {
-        ctx.fillStyle = STATE_COLOR.error;
-        ctx.font = `18px ${SANS}`;
-        let dy = e.y + 23;
-        for (const line of e.detailLines!) { ctx.fillText(line, 54, dy); dy += 23; }
-      }
-    }
-  });
-}
-
 export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: string }): void {
   if (htmlInCanvasSupported) { card.paintHtml(annotationMarkup(a)); return; }
   card.paint((ctx, w, h) => {
@@ -269,6 +175,9 @@ export function paintAnnotation(card: CanvasCard, a: { label: string; blurb: str
   });
 }
 
+/** Viewer-only. The published page (viewer/stage.ts) is a pure 3D scene with
+ * no DOM chrome, so its lore card stays a card. The workshop app renders the
+ * same fields as real DOM; see src/app/panels.tsx. */
 export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitmap | null = null, iconUrl: string | null = null): void {
   if (htmlInCanvasSupported) { card.paintHtml(statsMarkup(lore, iconUrl)); return; }
   card.paint((ctx, w, h) => {
@@ -279,10 +188,6 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
     ctx.fillStyle = MUTED;
     ctx.font = `italic 400 23px ${SANS}`;
     ctx.fillText(lore.epithet, 28, 82);
-    ctx.fillStyle = ACCENT;
-    kicker(ctx, 14);
-    ctx.fillText(`ELEMENT / ${lore.element.toUpperCase()}`, 28, 110);
-    resetTracking(ctx);
     if (icon) {
       ctx.drawImage(icon, w - 96, 24, 72, 72);
       ctx.strokeStyle = LINE;
@@ -299,19 +204,12 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
       ctx.fillRect(130, y - 11, 20 * (v as number), 10);
       y += 31;
     }
-    ctx.fillStyle = ACCENT;
-    kicker(ctx, 13);
-    y += 8;
-    ctx.fillText("ABILITIES", 28, y);
-    resetTracking(ctx);
-    y += 24;
+    y += 32;
     for (const a of lore.abilities) {
       ctx.fillStyle = INK;
       ctx.font = `600 18px ${SANS}`;
       ctx.fillText(a.name, 28, y);
       y += 21;
-      // Blurbs are a full sentence: wrap them instead of letting the line run
-      // off the card edge (single-line overflow showed once type got bigger).
       ctx.fillStyle = MUTED;
       ctx.font = `16px ${SANS}`;
       for (const line of wrapText(a.blurb, 42)) { ctx.fillText(line, 28, y); y += 19; }
@@ -320,8 +218,7 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
     ctx.fillStyle = MUTED;
     ctx.font = `400 18px ${SANS}`;
     y += 10;
-    // The card has a fixed height and the lore length varies, so draw only
-    // the lines that fit and mark a trim rather than spilling past the edge.
+    // Fixed card height, variable lore length: draw what fits and mark a trim.
     const lines = wrapText(lore.lore, 40);
     for (let i = 0; i < lines.length; i++) {
       const last = y + 24 > h - 22;
@@ -329,44 +226,5 @@ export function paintStats(card: CanvasCard, lore: MonsterLore, icon: ImageBitma
       y += 24;
       if (last) break;
     }
-  });
-}
-
-export function paintConcept(
-  card: CanvasCard,
-  opts: { imageBitmap: ImageBitmap | null; imageUrl?: string | null; prompt: string; rerolls: number },
-): void {
-  if (htmlInCanvasSupported) {
-    // The live <img> in the template loads itself; no fetch/bitmap needed.
-    card.paintHtml(conceptMarkup({ imageUrl: opts.imageUrl ?? null, prompt: opts.prompt, rerolls: opts.rerolls }));
-    return;
-  }
-  card.paint((ctx, w, h) => {
-    panel(ctx, w, h);
-    if (opts.imageBitmap) ctx.drawImage(opts.imageBitmap, 24, 24, w - 48, w - 48);
-    ctx.fillStyle = MUTED;
-    ctx.font = `italic 400 20px ${SANS}`;
-    let y = w;
-    for (const line of wrapText(opts.prompt, 44)) { ctx.fillText(line, 24, y); y += 22; }
-    if (opts.rerolls > 1) {
-      ctx.fillStyle = MUTED;
-      kicker(ctx, 11);
-      ctx.fillText(`TAKE ${opts.rerolls}`, 24, h - 20);
-      resetTracking(ctx);
-    }
-  });
-}
-
-export function paintMessage(card: CanvasCard, opts: { title: string; body: string }): void {
-  if (htmlInCanvasSupported) { card.paintHtml(messageMarkup(opts)); return; }
-  card.paint((ctx, w, h) => {
-    panel(ctx, w, h);
-    ctx.fillStyle = INK;
-    ctx.font = `600 27px ${SANS}`;
-    ctx.fillText(opts.title, 24, 46);
-    ctx.fillStyle = MUTED;
-    ctx.font = `19px ${SANS}`;
-    let y = 86;
-    for (const line of wrapText(opts.body, 36)) { ctx.fillText(line, 24, y); y += 27; }
   });
 }

@@ -8,7 +8,23 @@ export interface StatusDeps {
   deployment: () => Promise<{ url: string } | null>;
   state: () => Promise<WorkshopState>;
 }
+/** A bank entry as the browser needs it: enough to draw a tile and load it. */
+export interface MonsterSummary {
+  id: string;
+  name: string;
+  epithet: string;
+  prompt: string;
+  createdAt: string;
+  iconUrl: string;
+  current: boolean;
+}
+
 export interface WorkshopStatus {
+  monsters: MonsterSummary[];
+  /** Versions the GLB URL. three caches loaded models BY URL, so without a
+   * changing key a newly summoned creature would silently render as the
+   * previous one -- same path, same cache entry. */
+  currentMonsterId: string | null;
   keys: { fal: KeyStatus };
   concept: { count: number; approved: boolean };
   model: WorkshopState["model"];
@@ -49,6 +65,16 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
     deps.state(),
   ]);
   return {
+    monsters: state.monsters.map((m) => ({
+      id: m.id,
+      name: m.name,
+      epithet: m.epithet,
+      prompt: m.prompt,
+      createdAt: m.createdAt,
+      iconUrl: `/generated/bank/${m.id}.png`,
+      current: m.id === state.currentMonsterId,
+    })),
+    currentMonsterId: state.currentMonsterId,
     keys: { fal },
     concept: { count, approved: state.approvedConceptId !== null },
     model: glb && state.model.status === "none" ? { ...state.model, status: "done" } : state.model,

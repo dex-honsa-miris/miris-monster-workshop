@@ -3,6 +3,8 @@ import { flowPhase } from "../src/app/flow";
 import type { WorkshopStatus } from "../server/status";
 
 const status = (over: Partial<WorkshopStatus>): WorkshopStatus => ({
+  monsters: [],
+  currentMonsterId: null,
   keys: { fal: { present: true, valid: true, detail: "" } },
   concept: { count: 0, approved: false },
   model: { status: "none", glbPath: null, error: null },

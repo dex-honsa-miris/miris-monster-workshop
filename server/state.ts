@@ -1,7 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export interface Concept { id: string; prompt: string; imageUrl: string; createdAt: string }
+export interface Concept {
+  id: string;
+  prompt: string;
+  imageUrl: string;
+  createdAt: string;
+  /** The shaper's art-direction paragraph for this concept. Carried forward
+   * so the texturing stage is told the same style the image was drawn to. */
+  styledPrompt?: string | null;
+}
 /** A click-to-annotate discovery, with the local-space point on the mount so
  * the card can be restored exactly where the player clicked. */
 export interface StoredDiscovery {
@@ -13,7 +21,24 @@ export interface StoredDiscovery {
   point: [number, number, number];
 }
 
+/** One summoned creature, kept so it can be brought back to the pedestal.
+ * The files themselves live under .workshop/monsters/<id>/; this is the index
+ * plus everything that belongs to the creature rather than to the session:
+ * its notes, and the Miris asset it was published as. */
+export interface MonsterRecord {
+  id: string;
+  prompt: string;
+  name: string;
+  epithet: string;
+  createdAt: string;
+  discoveries: StoredDiscovery[];
+  assetId: string | null;
+}
+
 export interface WorkshopState {
+  monsters: MonsterRecord[];
+  /** Which record the pedestal is currently showing. */
+  currentMonsterId: string | null;
   concepts: Concept[];
   approvedConceptId: string | null;
   model: { status: "none" | "running" | "done" | "failed"; glbPath: string | null; error: string | null };
@@ -28,6 +53,8 @@ export const stateFile = (): string => join(workshopDir(), "state.json");
 
 export function defaultState(): WorkshopState {
   return {
+    monsters: [],
+    currentMonsterId: null,
     concepts: [],
     approvedConceptId: null,
     model: { status: "none", glbPath: null, error: null },

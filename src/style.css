@@ -122,6 +122,16 @@ html, body, #root {
 .overlay .btn.primary { background: var(--ink); border-color: var(--ink); color: #111215; font-weight: 600; }
 .overlay .btn.primary:hover:not(:disabled) { background: #e4e5e9; border-color: #e4e5e9; }
 .overlay .btn:disabled { opacity: 0.4; cursor: default; }
+/* A secondary, destructive-ish action sitting next to a hint: present, but
+   never competing with the step the attendee is actually on. */
+.overlay .btn.quiet {
+  padding: 7px 13px;
+  border-color: var(--line);
+  background: none;
+  color: var(--dim);
+  font-size: 13px;
+}
+.overlay .btn.quiet:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
 
 /* A grouped step: keeps its own rows spaced and sitting on an opaque
    backing, so nothing behind it can ever read as overlapping text. */
@@ -181,9 +191,415 @@ html, body, #root {
   font: 13px var(--mono);
 }
 
+
+/* --- Side rails. The checklist and the codex used to be canvas textures in
+   the 3D scene; as DOM they get real links, selectable text, scrolling and
+   keyboard focus. A <details> so a cramped preview pane can collapse them
+   without losing them. --- */
+.dock {
+  --rail-top: 140px;
+  --rail-reserve: clamp(116px, 18vh, 190px);
+  position: absolute;
+  top: var(--rail-top);
+  bottom: var(--rail-reserve);
+  width: clamp(228px, 21vw, 310px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  pointer-events: none;
+}
+.dock[data-side="left"] { left: 24px; }
+.dock[data-side="right"] { right: 24px; }
+/* Panels beneath the rail hold their size; the rail is what gives up height
+   when the column runs short. */
+.dock[data-side="right"] { justify-content: space-between; }
+.dock > * { pointer-events: auto; }
+
+.rail {
+  /* The scroll container is the <details> itself, with a sticky summary. The
+     obvious alternative -- flexing an inner body -- silently does nothing,
+     because a <details> puts its children inside an implicit
+     ::details-content box that is not our flex item. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 4px 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 9, 13, 0.9);
+  backdrop-filter: blur(6px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.rail::-webkit-scrollbar { width: 6px; }
+.rail::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.rail:not([open]) { flex: none; }
+
+.rail-head {
+  flex: none;
+  margin: 0 12px 0 0;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  /* Stays put while the panel scrolls under it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 14px 12px 10px 0;
+  background: rgba(8, 9, 13, 0.96);
+}
+.rail-head::-webkit-details-marker { display: none; }
+/* An unambiguous open/closed affordance: the bare dash read as a stray
+   character rather than a control. */
+.rail-head::after {
+  content: "\2212";
+  float: right;
+  width: 14px;
+  text-align: center;
+  color: var(--dim);
+}
+.rail:not([open]) .rail-head::after { content: "+"; }
+.rail-head:hover::after { color: var(--ink); }
+.rail-head:focus-visible { outline: none; color: var(--ink); text-decoration: underline; }
+
+.rail-body { padding-right: 12px; }
+
+/* The brand's section label, shared by both rails. */
+.eyebrow {
+  margin: 0;
+  font: 500 10px var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.eyebrow.accent { color: var(--accent); }
+
+/* --- Checklist --- */
+.phase + .phase { margin-top: 18px; }
+.items { margin: 8px 0 0; padding: 0; list-style: none; }
+.item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  font: 14px/1.35 var(--sans);
+  color: var(--ink);
+}
+.item .icon { text-align: center; line-height: 1.35; }
+.item[data-state="done"] .icon { color: #6da583; }
+.item[data-state="done"] .item-label,
+.item[data-state="done"] .item-link { color: var(--dim); }
+.item[data-state="doing"] .icon,
+.item[data-state="error"] .icon { color: var(--accent); }
+.item[data-state="todo"] .icon { color: var(--line-strong); }
+.item-link {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--ink);
+  text-decoration: none;
+}
+.item-link .arrow { margin-left: auto; color: var(--line-strong); flex: none; }
+.item-link:hover { color: var(--ink); text-decoration: underline; }
+.item-link:hover .arrow { color: var(--accent); }
+.item-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.item-detail {
+  grid-column: 2;
+  margin: 4px 0 0;
+  font: 12px/1.4 var(--sans);
+  color: var(--accent);
+}
+
+/* --- Concept --- */
+.concept-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.concept-prompt {
+  margin: 12px 0 10px;
+  font: italic 400 14px/1.45 var(--sans);
+  color: var(--muted);
+}
+
+/* --- Codex --- */
+.lore-head { position: relative; padding-right: 56px; }
+.lore-icon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+.lore-name { margin: 0; font: 600 21px/1.15 var(--sans); letter-spacing: -0.01em; }
+.lore-epithet { margin: 3px 0 10px; font: italic 400 14px/1.35 var(--sans); color: var(--muted); }
+
+.stats { margin: 14px 0 18px; }
+.stat { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 10px; }
+.stat + .stat { margin-top: 7px; }
+.stat dt { font: 13px var(--sans); color: var(--muted); }
+.stat dd { margin: 0; display: flex; align-items: center; gap: 8px; }
+.stat .track {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: #1a1b1f;
+  overflow: hidden;
+}
+.stat .fill { display: block; height: 100%; background: var(--ink); }
+.stat-value {
+  width: 16px;
+  text-align: right;
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+.abilities { margin: 8px 0 0; padding: 0; list-style: none; }
+.abilities li { margin-top: 8px; font: 13px/1.4 var(--sans); }
+.ability-name { color: var(--ink); font-weight: 600; }
+.ability-blurb { color: var(--muted); }
+.ability-name::after { content: " · "; color: var(--line-strong); font-weight: 400; }
+
+.lore-prose {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font: 13px/1.55 var(--sans);
+  color: var(--muted);
+}
+
+/* --- The bank: every creature summoned this session. --- */
+.bank {
+  /* Capped so it cannot squeeze the checklist's last steps out of view; the
+     rail above takes the remaining height and scrolls if it needs to. */
+  flex: 0 1 auto;
+  max-height: 34%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 6px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 9, 13, 0.9);
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+.bank > .eyebrow { flex: none; padding-right: 10px; }
+.bank-list {
+  margin: 10px 0 0;
+  padding: 0 10px 0 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.bank-list::-webkit-scrollbar { width: 6px; }
+.bank-list::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.bank-list li + li { margin-top: 6px; }
+
+.bank-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bank-item:hover:not(:disabled) { background: var(--ground-lift); border-color: var(--line); }
+.bank-item:focus-visible { outline: none; border-color: var(--ink); }
+/* The one on the pedestal is marked, not hidden: it is the reference point
+   for everything else in the list. */
+.bank-item[data-current] { border-color: var(--line-strong); background: rgba(255, 53, 0, 0.06); cursor: default; }
+.bank-item:disabled:not([data-current]) { opacity: 0.45; cursor: default; }
+
+.bank-thumb {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--ground-lift);
+}
+.bank-thumb-fallback {
+  display: grid;
+  place-items: center;
+  font: 600 15px var(--sans);
+  color: var(--dim);
+}
+.bank-text { display: flex; flex-direction: column; min-width: 0; }
+.bank-name {
+  font: 600 13px/1.25 var(--sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bank-epithet {
+  font: 11px/1.3 var(--sans);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bank-item[data-current] .bank-epithet { color: var(--accent); }
+
+/* --- Working: the waits with no percentage to report. --- */
+.overlay .working {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, 84vw);
+}
+.working-bar {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ground-lift);
+  overflow: hidden;
+}
+.working-fill {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: working-sweep 1.15s ease-in-out infinite;
+}
+@keyframes working-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(330%); }
+}
+.working-label { color: var(--dim); font: 13px var(--sans); text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .working-fill { animation: none; width: 100%; opacity: 0.5; }
+}
+
+/* --- Publish, docked under the codex. The asset id itself is one input at
+   the bottom of the screen with the other controls; only the file and the
+   portal need a home up here. --- */
+.publish {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 9, 13, 0.9);
+  backdrop-filter: blur(6px);
+}
+.publish-hint {
+  margin: 0 0 2px;
+  font: 13px/1.45 var(--sans);
+  color: var(--muted);
+}
+.publish .btn {
+  display: block;
+  padding: 9px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: rgba(17, 18, 21, 0.8);
+  color: var(--ink);
+  font: 500 13px/1 var(--sans);
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.publish-input {
+  /* The page has no global border-box reset, so width:100% plus padding and
+     a border would push this past the panel edge. */
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: rgba(17, 18, 21, 0.8);
+  color: var(--ink);
+  font: 13px/1.3 var(--sans);
+}
+.publish-input::placeholder { color: var(--dim); font-style: italic; }
+.publish-input:focus { outline: none; border-color: var(--muted); }
+.publish-input:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08); }
+.publish .btn:disabled { opacity: 0.4; cursor: default; }
+.publish .btn:hover { border-color: var(--muted); }
+.publish .btn:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1); }
+
+/* --- The error card, now dismissible --- */
+.overlay .note {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: min(560px, 92vw);
+  padding: 14px 14px 14px 18px;
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(8, 9, 13, 0.94);
+  text-align: left;
+}
+.note-title { margin: 0; font: 600 15px var(--sans); color: var(--ink); }
+.note-body { margin: 5px 0 0; font: 13px/1.45 var(--sans); color: var(--muted); }
+.note-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: 16px/1 var(--sans);
+  cursor: pointer;
+}
+.note-close:hover { color: var(--ink); border-color: var(--muted); }
+.note-close:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1); }
+
+@media (max-width: 1024px) {
+  .dock { width: clamp(200px, 26vw, 250px); --rail-top: 124px; }
+  .dock[data-side="left"] { left: 14px; }
+  .dock[data-side="right"] { right: 14px; }
+}
+
+/* Below this the two rails would meet in the middle, so they stop being
+   rails: each takes a top corner at a capped height and the scene keeps the
+   rest of the frame. */
+@media (max-width: 720px) {
+  .dock {
+    --rail-top: 108px;
+    width: calc(50vw - 20px);
+  }
+  .dock[data-side="left"] { left: 10px; }
+  .dock[data-side="right"] { right: 10px; }
+  .lore-head { padding-right: 0; }
+  .lore-icon { display: none; }
+}
+
 @media (max-width: 560px) {
   .masthead { top: 20px; }
   .masthead .lockup { width: 52px; }
+  .rail { font-size: 13px; padding-left: 12px; }
+  .publish { padding: 12px; }
+  .stat { grid-template-columns: 58px 1fr; }
 }
 
 /* Short viewports (Bolt preview pane with the terminal open, small laptops):
@@ -192,4 +608,5 @@ html, body, #root {
 @media (max-height: 760px) {
   .masthead:not([data-compact]) { transform: translateY(-8px) scale(0.62); }
   .overlay { padding-bottom: clamp(28px, 6vh, 56px); }
+  .dock { --rail-top: 96px; --rail-reserve: clamp(96px, 15vh, 150px); }
 }

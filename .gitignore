@@ -13,3 +13,6 @@ public/generated/
 .agents/
 .claude/
 skills-lock.json
+
+# Reference video for the summoning VFX; not needed to run the workshop.
+aeN5-8DoyWY3o8MwwaEty_video.mp4

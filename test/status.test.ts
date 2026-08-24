@@ -33,4 +33,30 @@ describe("buildStatus", () => {
     expect(s.lore.status).toBe("none");
     expect(s.deployment.url).toBeNull();
   });
+
+  it("summarises the bank and marks the creature on the pedestal", async () => {
+    const mk = (id: string, name: string) => ({
+      id, name, epithet: "the Tested", prompt: `a ${name}`,
+      createdAt: "2026-08-24T10:00:00Z", discoveries: [], assetId: null,
+    });
+    const s = await buildStatus(deps({
+      state: async () => ({
+        ...defaultState(),
+        monsters: [mk("a", "Alpha"), mk("b", "Beta")],
+        currentMonsterId: "b",
+      }),
+    }));
+    expect(s.monsters.map((m) => m.name)).toEqual(["Alpha", "Beta"]);
+    expect(s.monsters.map((m) => m.current)).toEqual([false, true]);
+    // The GLB path never changes, so this is what stops three serving a
+    // cached creature after a swap.
+    expect(s.currentMonsterId).toBe("b");
+    expect(s.monsters[1]!.iconUrl).toBe("/generated/bank/b.png");
+  });
+
+  it("reports an empty bank rather than omitting it", async () => {
+    const s = await buildStatus(deps());
+    expect(s.monsters).toEqual([]);
+    expect(s.currentMonsterId).toBeNull();
+  });
 });
