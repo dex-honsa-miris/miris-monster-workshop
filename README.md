@@ -2,7 +2,7 @@
 
 Welcome. In this workshop you will describe a monster in a sentence or two, watch it get sketched and sculpted in 3D by AI, give it a name and a bit of lore, and then publish it to your own live web page that you can share with anyone.
 
-Everything runs inside a bolt.new fork in your browser. You do not need to install anything locally.
+The app is React Three Fiber, so the 3D scene is components and hooks like the rest of your React code. Everything runs inside a bolt.new fork in your browser. You do not need to install anything locally.
 
 ## Step zero: sign into bolt.new
 

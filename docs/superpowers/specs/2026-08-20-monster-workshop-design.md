@@ -211,3 +211,14 @@ misbehaves in the WebContainer, falls back to Vercel's REST deploy API with
    deployment.json, which the checklist already watched). The vercel
    devDependency, CLI path, REST fallback, collectFiles, and VERCEL_TOKEN
    are removed.
+
+4. (2026-08-24) The scene layer is **React Three Fiber + drei** (supersedes
+   the imperative three.js scene in decision 6's repo layout). src/scene is
+   now components: Scene.tsx (Canvas, lights, HUD cards, drei OrbitControls),
+   Monster.tsx (useGLTF, hotspots with R3F pointer events, annotations),
+   PedestalMesh.tsx, RitualRing.tsx, Card.tsx. director.ts, stage.ts and
+   ritual.ts are deleted; probe.ts keeps the offscreen capture as a plain
+   function over the renderer R3F provides. React upgraded to 19 (required by
+   fiber 9). The pure modules the tests cover (annotations.ts, cards.ts,
+   pedestal.ts fit math, card-html.ts) are untouched, so the html-in-canvas
+   showcase and the whole test suite survive the port.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { checklistFrom } from "./checklist-model";
 
 // StackBlitz previews run on webcontainer hostnames; detecting that is how
@@ -8,7 +8,10 @@ const IN_STACKBLITZ =
 import { flowPhase } from "./flow";
 import { useStatus } from "./useStatus";
 import { fetchLore, postAnnotate, postApprove, postConcept, postLoreRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
-import { SceneDirector } from "../scene/director";
+import * as THREE from "three";
+import { Scene } from "../scene/Scene";
+import { captureProbe } from "../scene/probe";
+import type { MonsterLore } from "../../server/lore-schema";
 import type { Concept } from "../../server/state";
 
 const GLB_URL = "/generated/monster.glb";
@@ -19,10 +22,14 @@ interface ConceptState extends Pick<Concept, "id" | "prompt" | "imageUrl"> {
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export function App(): JSX.Element {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const directorRef = useRef<SceneDirector | null>(null);
-  const dragRef = useRef<number | null>(null);
+export function App(): React.ReactElement {
+  // R3F hands these out once the canvas exists. The annotate probe needs the
+  // renderer; nothing else reaches into the scene imperatively any more.
+  const glRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const camRef = useRef<THREE.Camera | null>(null);
+  const [lore, setLore] = useState<MonsterLore | null>(null);
+  const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const { status, error, refresh } = useStatus();
   const [prompt, setPrompt] = useState("");
   const [concept, setConcept] = useState<ConceptState | null>(null);
@@ -36,28 +43,12 @@ export function App(): JSX.Element {
   const assetId = uploadedId ?? status?.upload.assetId ?? null;
 
   useEffect(() => {
-    const director = new SceneDirector(mountRef.current!);
-    directorRef.current = director;
-    return () => {
-      directorRef.current = null;
-      director.dispose();
-    };
-  }, []);
-
-  useEffect(() => { directorRef.current?.showPhase(phase); }, [phase]);
-  useEffect(() => {
     // Rehearsal affordance: ?demo-error shows a sample error card so message
     // placement can be checked without breaking anything for real.
     if (new URLSearchParams(location.search).has("demo-error")) {
       setNote({ title: "That didn't work", body: "This is a sample error card for layout checks. The workflow was not called." });
     }
   }, []);
-  useEffect(() => { directorRef.current?.showChecklist(checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })); }, [status]);
-  useEffect(() => { directorRef.current?.setRitualBusy(busy || phase === "summoning"); }, [busy, phase]);
-  useEffect(() => { directorRef.current?.showMessage(note); }, [note]);
-  useEffect(() => {
-    if (concept) directorRef.current?.showConcept(concept);
-  }, [concept]);
   useEffect(() => {
     if (error) setNote({ title: "The workshop server went quiet", body: `${error} Is npm run dev still running?` });
   }, [error]);
@@ -67,9 +58,8 @@ export function App(): JSX.Element {
     let cancelled = false;
     void (async () => {
       try {
-        const lore = await fetchLore();
-        if (cancelled) return;
-        await directorRef.current?.revealMonster(GLB_URL, lore);
+        const doc = await fetchLore();
+        if (!cancelled) setLore(doc);
       } catch (e) {
         if (!cancelled) setNote({ title: "The lore is missing", body: errText(e) });
       }
@@ -103,7 +93,6 @@ export function App(): JSX.Element {
     if (!concept) return;
     void run("The summoning did not start", async () => {
       await postApprove(concept.id);
-      directorRef.current?.setRitualBusy(true);
     });
   };
 
@@ -132,74 +121,68 @@ export function App(): JSX.Element {
     });
   };
 
-  const movedRef = useRef(0);
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
-    movedRef.current = 0;
-    if ((e.target as HTMLElement).closest(".overlay")) return;
-    dragRef.current = e.clientX;
-    dragYRef.current = e.clientY;
-    // Capture keeps the drag alive past the window edge; a synthetic or
-    // already-released pointer id throws, and a dragless page is fine.
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture, still draggable */ }
-  };
-  const dragYRef = useRef<number | null>(null);
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
-    directorRef.current?.pointerMove(e.clientX, e.clientY);
-    if (dragRef.current === null) return;
-    const dx = e.clientX - dragRef.current;
-    const dy = e.clientY - (dragYRef.current ?? e.clientY);
-    movedRef.current += Math.abs(dx) + Math.abs(dy);
-    directorRef.current?.applyOrbitDelta(dx, dy);
-    dragRef.current = e.clientX;
-    dragYRef.current = e.clientY;
-  };
   const [probing, setProbing] = useState(false);
-  /** Click the monster itself: render the clicked spot, let vision name it,
-   * and pin the annotation card there. */
-  const probeMonster = (clientX: number, clientY: number): void => {
-    const d = directorRef.current;
-    if (!d || probing) return;
-    const point = d.monsterPointAt(clientX, clientY);
-    if (!point) return;
-    const shots = d.captureProbe(point);
+
+  /** Clicking the creature: render the clicked spot, let vision name it, and
+   * store the discovery. R3F reports the hit point through the mesh's own
+   * onClick, so there is no raycasting or drag bookkeeping here, and drei's
+   * OrbitControls owns the camera. */
+  const onPickPoint = useCallback((point: THREE.Vector3, local: THREE.Vector3): void => {
+    const gl = glRef.current;
+    const scene = sceneRef.current;
+    const cam = camRef.current;
+    if (!gl || !scene || !cam || probing) return;
+    const monster = scene.getObjectByName("monster-root");
+    if (!monster) return;
+    // Hide HUD cards and markers so the closeup frames only the creature.
+    const hide: THREE.Object3D[] = [];
+    scene.traverse((o) => { if (o.userData.hideInProbe === true) hide.push(o); });
+    const shots = captureProbe(gl, scene, cam, monster, point, hide);
     if (!shots) return;
     setProbing(true);
     void (async () => {
       try {
-        const found = await postAnnotate({ ...shots, point: [point.x, point.y, point.z] });
-        d.addDiscovery({ label: found.label, blurb: found.blurb }, point);
+        // Store the LOCAL point so the marker stays put on the spinning mount.
+        await postAnnotate({ ...shots, point: [local.x, local.y, local.z] });
+        refresh(); // the discovery returns through /api/status
       } catch (err) {
-        setNote({ title: "That part stayed a mystery", body: err instanceof Error ? err.message : String(err) });
+        setNote({ title: "That part stayed a mystery", body: errText(err) });
       } finally {
         setProbing(false);
       }
     })();
-  };
+  }, [probing, refresh]);
 
-  const endDrag = (e?: ReactPointerEvent<HTMLDivElement>): void => {
-    // A press that never really moved is a tap: the scene may consume it
-    // (checklist rows open dashboards), otherwise a tap on the monster asks
-    // the AI what that part is.
-    if (e && dragRef.current !== null && movedRef.current < 6) {
-      const consumed = directorRef.current?.tap(e.clientX, e.clientY) ?? false;
-      if (!consumed) probeMonster(e.clientX, e.clientY);
-    }
-    dragRef.current = null;
-    dragYRef.current = null;
-  };
+  const onHotspotClick = useCallback((id: string): void => {
+    setPinned((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const onCanvasReady = useCallback((gl: THREE.WebGLRenderer, scene: THREE.Scene, cam: THREE.Camera): void => {
+    glRef.current = gl;
+    sceneRef.current = scene;
+    camRef.current = cam;
+  }, []);
 
   return (
-    <div
-      id="stage-mount"
-      ref={mountRef}
-      style={{ position: "fixed", inset: 0 }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={(e) => endDrag(e)}
-      onPointerCancel={() => endDrag()}
-      onWheel={(e) => { e.preventDefault(); directorRef.current?.applyZoom(e.deltaY > 0 ? 1.08 : 0.93); }}
-      onLostPointerCapture={endDrag}
-    >
+    <>
+      <Scene
+        phase={phase}
+        phases={checklistFrom(status, { inStackBlitz: IN_STACKBLITZ })}
+        status={status}
+        lore={lore}
+        concept={concept}
+        note={note}
+        monsterUrl={modelReady ? GLB_URL : null}
+        pinned={pinned}
+        onPickPoint={onPickPoint}
+        onHotspotClick={onHotspotClick}
+        onCanvasReady={onCanvasReady}
+      />
       <header
         className="masthead"
         data-compact={phase === "summoning" || phase === "reveal" ? "true" : undefined}
@@ -321,6 +304,6 @@ export function App(): JSX.Element {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

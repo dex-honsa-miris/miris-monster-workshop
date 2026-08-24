@@ -6,3 +6,10 @@ dist-viewer/
 .env
 public/generated/
 .vercel/
+
+# Agent tooling: dev-side only, not workshop content. Keeping these out of
+# the template means attendee forks stay clean (and Bolt's assistant does not
+# read our coding rules as if they were project instructions).
+.agents/
+.claude/
+skills-lock.json
