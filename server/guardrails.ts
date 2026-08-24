@@ -23,9 +23,11 @@ const ART_BIBLE =
   "skin folds and texture visible up close, sculpted anatomy, crisp material definition. " +
   "Strictly matte, completely diffuse surfaces throughout, like unvarnished painted resin. " +
   "Chunky readable silhouette, friendly-with-an-edge character design. Single full-body " +
-  "creature, centered, three-quarter view, feet on nothing -- floating on a plain background " +
-  "with no ground, no floor, no disc, no pedestal, no base. Clean light gray studio " +
-  "background, flat even diffuse lighting, no cast shadows, no scenery.";
+  "creature, centered, three-quarter view, in a grounded standing pose: all feet planted flat " +
+  "and level at the bottom of the frame, weight settled as if on solid ground -- but the " +
+  "ground itself is invisible, a seamless uniform backdrop with no floor line, no disc, no " +
+  "pedestal, no base, no shadow beneath it. Clean light gray studio background, flat even " +
+  "diffuse lighting, no cast shadows, no scenery.";
 
 const NEGATIVE =
   "glossy, shiny, wet look, slimy, chrome, metallic sheen, specular hotspots, reflections, " +
