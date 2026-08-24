@@ -16,6 +16,20 @@ export interface ConceptView {
 }
 
 const LEADER = 0x82838a;
+interface Annotation {
+  id: string;
+  card: CanvasCard;
+  line: THREE.Line;
+  /** The always-visible marker on the creature's surface. */
+  hotspot: THREE.Sprite;
+  /** 0 closed, 1 fully open. Eased toward its target every frame. */
+  reveal: number;
+  cardScale: number;
+  discovered: boolean;
+}
+
+const REVEAL_SPEED = 7.5; // per second; ~180ms to open
+const HOTSPOT_SIZE = 0.075;
 const CARD_DEPTH = 3.9; // how far in front of the camera the HUD cards sit
 const EDGE_CARD_MAX = 0.95; // keeps side cards from crowding the creature
 const DISCOVERED = 0xff3500; // player-found annotations get the accent leader
@@ -50,7 +64,10 @@ export class SceneDirector {
   #modelUrl: string | null = null;
   #loading: Promise<boolean> | null = null;
   #appliedLore: MonsterLore | null = null;
-  #annotations: Array<{ card: CanvasCard; line: THREE.Line }> = [];
+  #annotations: Annotation[] = [];
+  #hoveredHotspot: string | null = null;
+  #pinned = new Set<string>();
+  #hotspotTexture: THREE.CanvasTexture | null = null;
   #conceptToken = 0;
 
   readonly #scratch = new THREE.Quaternion();
@@ -92,7 +109,10 @@ export class SceneDirector {
       this.#placeHud(this.#stats.mesh, 1, 0.06);
       this.#placeHud(this.#concept.mesh, 0, 0.08);
       this.#placeHud(this.#message.mesh, 0, 0.5);
-      for (const a of this.#annotations) this.#billboard(a.card.mesh);
+      for (const a of this.#annotations) {
+        this.#billboard(a.card.mesh);
+        this.#updateReveal(a, dt, t);
+      }
     });
     this.#stage.start();
   }
@@ -111,17 +131,27 @@ export class SceneDirector {
 
   /** Hover feedback for the checklist card; safe to call every pointermove. */
   pointerMove(clientX: number, clientY: number): void {
+    const spot = this.#hotspotAt(clientX, clientY);
+    this.#hoveredHotspot = spot?.id ?? null;
     const row = this.#checklistRowAt(clientX, clientY);
     const hover = row?.href ? row.id : null;
     if (hover !== this.#checklistHover) {
       this.#checklistHover = hover;
       paintChecklist(this.#checklist, this.#checklistPhases, hover);
-      this.#stage.renderer.domElement.style.cursor = hover ? "pointer" : "";
     }
+    this.#stage.renderer.domElement.style.cursor = hover || spot ? "pointer" : "";
   }
 
   /** A click that was not a drag. Returns true when the scene consumed it. */
   tap(clientX: number, clientY: number): boolean {
+    const spot = this.#hotspotAt(clientX, clientY);
+    if (spot) {
+      // Click pins an annotation open so it survives an orbit; click again
+      // to close it.
+      if (this.#pinned.has(spot.id)) this.#pinned.delete(spot.id);
+      else this.#pinned.add(spot.id);
+      return true;
+    }
     const row = this.#checklistRowAt(clientX, clientY);
     if (!row?.href) return false;
     window.open(row.href, "_blank", "noopener");
@@ -190,7 +220,7 @@ export class SceneDirector {
     if (!monster || this.#probing) return null;
     this.#probing = true;
     const hidden: THREE.Object3D[] = [this.#ritual.group, this.#checklist.mesh, this.#stats.mesh, this.#concept.mesh, this.#message.mesh];
-    for (const a of this.#annotations) hidden.push(a.card.mesh, a.line);
+    for (const a of this.#annotations) hidden.push(a.card.mesh, a.line, a.hotspot);
     const wasVisible = hidden.map((o) => o.visible);
     hidden.forEach((o) => { o.visible = false; });
     const prevTarget = renderer.getRenderTarget();
@@ -248,6 +278,76 @@ export class SceneDirector {
     return canvas.toDataURL("image/jpeg", 0.82);
   }
 
+  /** A small ring-and-dot sprite, drawn once and shared by every hotspot. */
+  #hotspotSprite(discovered: boolean): THREE.Sprite {
+    if (!this.#hotspotTexture) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 128;
+      const ctx = c.getContext("2d")!;
+      ctx.beginPath();
+      ctx.arc(64, 64, 44, 0, Math.PI * 2);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(64, 64, 17, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      this.#hotspotTexture = new THREE.CanvasTexture(c);
+      this.#hotspotTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+    const mat = new THREE.SpriteMaterial({
+      map: this.#hotspotTexture,
+      color: discovered ? DISCOVERED : 0xffffff,
+      transparent: true,
+      opacity: 0.72,
+      depthTest: false, // a marker behind a leg is still clickable and visible
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.setScalar(HOTSPOT_SIZE);
+    sprite.renderOrder = 3;
+    return sprite;
+  }
+
+  /** Eases a card open or closed and keeps its hotspot alive underneath. */
+  #updateReveal(a: Annotation, dt: number, t: number): void {
+    const open = this.#phase === "reveal" && (this.#hoveredHotspot === a.id || this.#pinned.has(a.id));
+    const target = open ? 1 : 0;
+    a.reveal += (target - a.reveal) * Math.min(1, dt * REVEAL_SPEED);
+    if (Math.abs(target - a.reveal) < 0.002) a.reveal = target;
+
+    const visible = this.#phase === "reveal";
+    a.hotspot.visible = visible;
+    // Idle hotspots breathe gently; the hovered one swells and brightens.
+    const pulse = 1 + Math.sin(t * 2.4 + a.hotspot.position.x * 9) * 0.06;
+    const emphasis = 1 + a.reveal * 0.5;
+    a.hotspot.scale.setScalar(HOTSPOT_SIZE * pulse * emphasis);
+    (a.hotspot.material as THREE.SpriteMaterial).opacity = visible ? 0.55 + a.reveal * 0.45 : 0;
+
+    const shown = visible && a.reveal > 0.01;
+    a.card.mesh.visible = shown;
+    a.line.visible = shown;
+    if (!shown) return;
+    const eased = a.reveal * a.reveal * (3 - 2 * a.reveal); // smoothstep
+    a.card.mesh.scale.setScalar(a.cardScale * (0.82 + eased * 0.18));
+    (a.card.mesh.material as THREE.MeshBasicMaterial).opacity = eased;
+    (a.line.material as THREE.LineBasicMaterial).opacity = eased * (a.discovered ? 0.85 : 0.6);
+  }
+
+  /** The hotspot under the pointer, if any. */
+  #hotspotAt(clientX: number, clientY: number): Annotation | null {
+    if (this.#phase !== "reveal" || this.#annotations.length === 0) return null;
+    const el = this.#stage.renderer.domElement;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    this.#ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.#raycaster.setFromCamera(this.#ndc, this.#stage.camera);
+    const sprites = this.#annotations.map((a) => a.hotspot);
+    const hit = this.#raycaster.intersectObjects(sprites, false)[0];
+    if (!hit) return null;
+    return this.#annotations.find((a) => a.hotspot === hit.object) ?? null;
+  }
+
   /** Adds a discovered annotation card at an exact world point. */
   addDiscovery(d: { label: string; blurb: string }, worldPoint: THREE.Vector3): void {
     const monster = this.#monster;
@@ -257,19 +357,41 @@ export class SceneDirector {
     const radius = box.getSize(new THREE.Vector3()).length() / 2;
     const outward = worldPoint.clone().sub(box.getCenter(new THREE.Vector3())).normalize();
     if (outward.lengthSq() < 1e-6) outward.set(0, 0, 1);
-    const cardWorld = placeAnnotationCard(worldPoint.clone().addScaledVector(outward, Math.max(0.4, radius * 0.5)));
-    const anchorLocal = mount.worldToLocal(worldPoint.clone());
-    const cardLocal = mount.worldToLocal(cardWorld);
+    const cardWorld = placeAnnotationCard(worldPoint.clone().addScaledVector(outward, Math.max(0.22, radius * 0.34)));
+    this.#buildAnnotation(`found-${Date.now()}`, d, worldPoint, cardWorld, true);
+    this.#applyVisibility();
+  }
+
+  /** Creates a hotspot marker plus its (initially closed) card and leader
+   * line, all parented to the turntable mount so they ride the monster. */
+  #buildAnnotation(
+    id: string,
+    text: { label: string; blurb: string },
+    anchorWorld: THREE.Vector3,
+    cardWorld: THREE.Vector3,
+    discovered: boolean,
+  ): void {
+    const mount = this.#pedestal.mount;
+    const anchorLocal = mount.worldToLocal(anchorWorld.clone());
+    const cardLocal = mount.worldToLocal(cardWorld.clone());
+
     const card = new CanvasCard(0.62, 0.34, 384);
-    paintAnnotation(card, d);
+    paintAnnotation(card, text);
     card.mesh.position.copy(cardLocal);
+    (card.mesh.material as THREE.MeshBasicMaterial).opacity = 0;
+    card.mesh.renderOrder = 2;
+
     const tip = cardLocal.clone().lerp(anchorLocal, 0.22);
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([anchorLocal, tip]),
-      new THREE.LineBasicMaterial({ color: DISCOVERED, transparent: true, opacity: 0.85 }),
+      new THREE.LineBasicMaterial({ color: discovered ? DISCOVERED : LEADER, transparent: true, opacity: 0 }),
     );
-    mount.add(card.mesh, line);
-    this.#annotations.push({ card, line });
+
+    const hotspot = this.#hotspotSprite(discovered);
+    hotspot.position.copy(anchorLocal);
+
+    mount.add(card.mesh, line, hotspot);
+    this.#annotations.push({ id, card, line, hotspot, reveal: 0, cardScale: 1, discovered });
     this.#applyVisibility();
   }
 
@@ -306,6 +428,7 @@ export class SceneDirector {
     this.#clearAnnotations();
     this.#disposeMonster();
     for (const card of [this.#checklist, this.#concept, this.#stats, this.#message]) card.dispose();
+    this.#hotspotTexture?.dispose();
     this.#probeTarget?.dispose();
     this.#ritual.dispose();
     this.#pedestal.dispose();
@@ -318,10 +441,9 @@ export class SceneDirector {
     this.#concept.mesh.visible = this.#hasConcept && (this.#phase === "create" || this.#phase === "summoning");
     this.#stats.mesh.visible = this.#hasStats && this.#phase === "reveal";
     this.#message.mesh.visible = this.#hasMessage;
-    for (const a of this.#annotations) {
-      a.card.mesh.visible = this.#phase === "reveal";
-      a.line.visible = this.#phase === "reveal";
-    }
+    // Cards and lines are driven by #updateReveal; only the markers follow
+    // phase directly.
+    for (const a of this.#annotations) a.hotspot.visible = this.#phase === "reveal";
   }
 
   /** Places a card in world space as if it were pinned to the screen: at
@@ -444,25 +566,10 @@ export class SceneDirector {
     const box = new THREE.Box3().setFromObject(monster);
     const radius = box.getSize(new THREE.Vector3()).length() / 2;
 
-    for (const a of lore.annotations) {
+    for (const [i, a] of lore.annotations.entries()) {
       const { point, outward } = anchorFor(monster, a.slot);
       const cardWorld = placeAnnotationCard(cardPositionFor(point, outward, radius, a.slot));
-      // Annotation cards ride the turntable so their leader lines stay welded
-      // to the surface point they describe.
-      const anchorLocal = mount.worldToLocal(point.clone());
-      const cardLocal = mount.worldToLocal(cardWorld.clone());
-
-      const card = new CanvasCard(0.62, 0.34, 384);
-      paintAnnotation(card, { label: a.label, blurb: a.blurb });
-      card.mesh.position.copy(cardLocal);
-
-      const tip = cardLocal.clone().lerp(anchorLocal, 0.22); // stop short of the card face
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([anchorLocal, tip]),
-        new THREE.LineBasicMaterial({ color: LEADER, transparent: true, opacity: 0.6 }),
-      );
-      mount.add(card.mesh, line);
-      this.#annotations.push({ card, line });
+      this.#buildAnnotation(`lore-${i}-${a.slot}`, { label: a.label, blurb: a.blurb }, point, cardWorld, false);
     }
     this.#applyVisibility();
   }
@@ -474,8 +581,12 @@ export class SceneDirector {
       a.line.removeFromParent();
       a.line.geometry.dispose();
       (a.line.material as THREE.Material).dispose();
+      a.hotspot.removeFromParent();
+      (a.hotspot.material as THREE.Material).dispose();
     }
     this.#annotations = [];
+    this.#pinned.clear();
+    this.#hoveredHotspot = null;
   }
 
   #disposeMonster(): void {

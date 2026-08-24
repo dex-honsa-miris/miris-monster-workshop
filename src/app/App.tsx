@@ -256,7 +256,7 @@ export function App(): JSX.Element {
 
         {phase === "reveal" && (
           <p className="hint">
-            {probing ? "Looking closely at that part..." : "Click any part of your monster to have it examined and annotated."}
+            {probing ? "Looking closely at that part..." : "Hover a marker to read it, click to keep it open. Click bare skin to have that part examined."}
           </p>
         )}
 

@@ -26,18 +26,18 @@ export function anchorFor(object: THREE.Object3D, slot: AnnotationSlot): { point
   return { point, outward: dir };
 }
 
-/** Per-slot spread so several cards never stack on the same screen spot: each
- * slot gets its own outward push and vertical tier. Without this, 4-5
- * annotations on one monster collided into an unreadable pile (observed with
- * a 5-annotation storm axolotl). */
+/** Per-slot direction so two cards opened at once do not sit on the same
+ * spot. Offsets are small: annotations now open one at a time from a hotspot,
+ * so a card belongs NEXT TO the feature it describes, not pushed out to the
+ * edge of the scene. */
 const SLOT_SPREAD: Record<AnnotationSlot, { push: number; lift: number }> = {
-  crown: { push: 0.95, lift: 0.55 },
-  face: { push: 1.25, lift: 0.12 },
-  left: { push: 1.35, lift: -0.1 },
-  right: { push: 1.35, lift: 0.3 },
-  core: { push: 1.1, lift: -0.32 },
-  base: { push: 1.0, lift: -0.5 },
-  aura: { push: 1.2, lift: 0.7 },
+  crown: { push: 0.55, lift: 0.22 },
+  face: { push: 0.7, lift: 0.06 },
+  left: { push: 0.75, lift: -0.04 },
+  right: { push: 0.75, lift: 0.12 },
+  core: { push: 0.65, lift: -0.12 },
+  base: { push: 0.6, lift: -0.18 },
+  aura: { push: 0.7, lift: 0.28 },
 };
 
 export function cardPositionFor(
@@ -47,20 +47,25 @@ export function cardPositionFor(
   slot: AnnotationSlot = "core",
 ): THREE.Vector3 {
   const { push, lift } = SLOT_SPREAD[slot];
-  const p = anchor.clone().addScaledVector(outward, Math.max(0.45, bboxRadius * 0.55) * push);
+  const p = anchor.clone().addScaledVector(outward, Math.max(0.22, bboxRadius * 0.34) * push);
   p.y = Math.max(0.05, p.y + lift);
   return p;
 }
 
 const CARD_MIN_Y = 0.62;     // just above the pedestal rim (top at y = 0.5)
 const CARD_MAX_Y = 2.15;     // below the top of the default camera frustum
-const CARD_MIN_RADIUS = 1.2; // outside the pedestal body (radius ~1.0)
+const CARD_MIN_RADIUS = 0.55; // clear of the pedestal centre only
 
 /**
  * Keeps an annotation card in view. A downward slot (base, or anything low on
  * a squat monster) would otherwise sit inside the pedestal where it cannot be
  * seen, and a crown slot on a tall monster would ride off the top of the
  * frame. Clamp both ends; the leader line still points at the surface.
+ *
+ * The radial push is deliberately small: cards used to be forced outside the
+ * pedestal radius because every annotation was visible at once and they had
+ * to avoid each other. Now that one opens at a time from its hotspot, a card
+ * should sit NEXT TO its feature, overlapping the creature if need be.
  */
 export function placeAnnotationCard(p: THREE.Vector3): THREE.Vector3 {
   p.y = Math.min(p.y, CARD_MAX_Y);
