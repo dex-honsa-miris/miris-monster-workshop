@@ -105,7 +105,28 @@ const NODE_PROGRESS: Record<string, { done: number; label: string }> = {
   icon: { done: 0.12, label: "Emblem painted" },
 };
 
+/** Summons this server process is actually working on. State alone cannot be
+ * trusted: a dev-server restart mid-summon (routine in bolt.new) kills the
+ * background task but leaves state.json saying "running" forever, which
+ * strands the attendee on a bar that never moves and never fails. */
+const liveSummons = new Set<string>();
+
+/** Reconcile a "running" state that no live task backs: mark it failed so the
+ * retry button appears. Self-healing if the judgement is ever wrong: a task
+ * that does complete later still writes "done" over this. */
+async function reapOrphanedSummon(): Promise<void> {
+  if (liveSummons.size > 0) return;
+  const s = await readState();
+  if (s.model.status !== "running") return;
+  const error = "The server restarted while summoning. The generation may still be billed; press Retry to relaunch it.";
+  await patchState({
+    model: { status: "failed", glbPath: null, error, progress: 0, stage: null },
+    loreStatus: { status: "failed", error },
+  });
+}
+
 async function startSummon(concept: { id: string; prompt: string; imageUrl: string; styledPrompt?: string | null }): Promise<void> {
+  liveSummons.add(concept.id);
   const s = await readState();
   await patchState({
     approvedConceptId: concept.id,
@@ -183,6 +204,8 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
         model: { status: "failed", glbPath: null, error: String(e), progress: 0, stage: null },
         loreStatus: { status: "failed", error: String(e) },
       });
+    } finally {
+      liveSummons.delete(concept.id);
     }
   })().catch((e) => console.warn("[workshop] background task failed:", e));
 }
@@ -190,6 +213,7 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
 const routes: Record<string, Handler> = {
   "GET /api/status": async () => {
     await adoptCurrentMonster();
+    await reapOrphanedSummon();
     return {
       status: 200,
       json: await buildStatus({
