@@ -115,7 +115,6 @@ function Contents(props: SceneProps): React.ReactElement {
         <Suspense fallback={null}>
           <Monster
             url={props.monsterUrl}
-            lore={props.lore}
             discoveries={props.status?.discoveries ?? []}
             pinned={props.pinned}
             onPickPoint={props.onPickPoint}

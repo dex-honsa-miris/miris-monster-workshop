@@ -7,8 +7,6 @@ import { useFrame } from "@react-three/fiber";
 import { Billboard, useGLTF } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import type { MonsterLore } from "../../server/lore-schema";
-import { anchorFor, cardPositionFor, placeAnnotationCard } from "./annotations";
 import { paintAnnotation, type CanvasCard } from "./cards";
 import { Card } from "./Card";
 import { fitOnPedestal } from "./pedestal";
@@ -28,31 +26,22 @@ export interface AnnotationSpec {
   discovered: boolean;
 }
 
-/** Builds the annotation specs for a loaded monster: lore annotations by slot,
- * plus any discovered ones at their exact clicked points. */
+/** Builds the annotation specs for a loaded monster.
+ *
+ * ONLY discoveries produce markers. A freshly summoned monster wears nothing:
+ * every annotation on it is one the player found by clicking, which makes the
+ * creature worth exploring instead of arriving pre-labelled. (The lore
+ * document still carries its own annotations; they are unused here and kept
+ * for the codex text and for anything that later wants a hint system.) */
 export function buildAnnotations(
   monster: THREE.Object3D,
   mount: THREE.Object3D,
-  lore: MonsterLore | null,
   discoveries: Array<{ id: string; label: string; blurb: string; point: [number, number, number] }>,
 ): AnnotationSpec[] {
   const box = new THREE.Box3().setFromObject(monster);
   const center = box.getCenter(new THREE.Vector3());
   const radius = box.getSize(new THREE.Vector3()).length() / 2;
   const specs: AnnotationSpec[] = [];
-
-  for (const [i, a] of (lore?.annotations ?? []).entries()) {
-    const { point, outward } = anchorFor(monster, a.slot);
-    const cardWorld = placeAnnotationCard(cardPositionFor(point, outward, radius, a.slot));
-    specs.push({
-      id: `lore-${i}-${a.slot}`,
-      label: a.label,
-      blurb: a.blurb,
-      anchor: mount.worldToLocal(point.clone()),
-      card: mount.worldToLocal(cardWorld.clone()),
-      discovered: false,
-    });
-  }
 
   // Stored discovery points are MOUNT-LOCAL. They must be: the mount spins
   // continuously, so a world-space point would map to a different spot on the
@@ -154,14 +143,13 @@ function Annotation({ spec, open }: { spec: AnnotationSpec; open: boolean }): Re
 
 export interface MonsterProps {
   url: string;
-  lore: MonsterLore | null;
   discoveries: Array<{ id: string; label: string; blurb: string; point: [number, number, number] }>;
   pinned: Set<string>;
   onPickPoint: (world: THREE.Vector3, local: THREE.Vector3) => void;
   onHotspotClick: (id: string) => void;
 }
 
-export function Monster({ url, lore, discoveries, pinned, onPickPoint, onHotspotClick }: MonsterProps): React.ReactElement {
+export function Monster({ url, discoveries, pinned, onPickPoint, onHotspotClick }: MonsterProps): React.ReactElement {
   const { scene } = useGLTF(url);
   const mount = useRef<THREE.Group>(null);
   const [specs, setSpecs] = useState<AnnotationSpec[]>([]);
@@ -187,8 +175,8 @@ export function Monster({ url, lore, discoveries, pinned, onPickPoint, onHotspot
   useEffect(() => {
     if (!mount.current) return;
     mount.current.updateMatrixWorld(true);
-    setSpecs(buildAnnotations(model, mount.current, lore, discoveries));
-  }, [model, lore, discoveries]);
+    setSpecs(buildAnnotations(model, mount.current, discoveries));
+  }, [model, discoveries]);
 
   useFrame((_, dt) => {
     if (mount.current) mount.current.rotation.y += dt * 0.15;

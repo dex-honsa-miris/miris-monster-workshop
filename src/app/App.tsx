@@ -239,7 +239,11 @@ export function App(): React.ReactElement {
 
         {phase === "reveal" && (
           <p className="hint">
-            {probing ? "Looking closely at that part..." : "Hover a marker to read it, click to keep it open. Click bare skin to have that part examined."}
+            {probing
+              ? "Looking closely at that part..."
+              : (status?.discoveries.length ?? 0) === 0
+                ? "Your monster has no notes yet. Click any part of it to find out what that is."
+                : `${status?.discoveries.length} discovered. Keep clicking, or hover a marker to read it.`}
           </p>
         )}
 
