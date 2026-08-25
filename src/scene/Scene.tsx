@@ -5,7 +5,7 @@ import { Environment, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Select, Selection, SelectiveBloom, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SelectiveBloomEffect } from "postprocessing";
 import * as THREE from "three";
 import type { WorkshopStatus } from "../../server/status";
@@ -156,6 +156,48 @@ function SummonBloom({ flashRef }: { flashRef: { current: number } }): React.Rea
   );
 }
 
+/** Key and fill that follow the camera.
+ *
+ * A world-fixed key makes orbiting a lighting tour instead of a model tour:
+ * measured across a 360 orbit, scene brightness swung ~30% and the far side
+ * was a silhouette. A showcase turntable wants the opposite -- the model
+ * reads the same from every angle -- so the key rides above-right of
+ * whatever the camera is, and a soft fill rides its left. The environment
+ * stays world-fixed as ambient, which keeps just enough directional variety
+ * for the surface to feel lit rather than flat. */
+function CameraLights(): React.ReactElement {
+  const key = useRef<THREE.SpotLight>(null);
+  const fill = useRef<THREE.DirectionalLight>(null);
+  const camera = useThree((s) => s.camera);
+  const right = useMemo(() => new THREE.Vector3(), []);
+  const up = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(() => {
+    camera.updateMatrixWorld();
+    right.setFromMatrixColumn(camera.matrixWorld, 0);
+    up.setFromMatrixColumn(camera.matrixWorld, 1);
+    const k = key.current;
+    if (k) {
+      k.position.copy(camera.position).addScaledVector(right, 2.2).addScaledVector(up, 2.6);
+      k.target.position.set(0, 1, 0);
+      k.target.updateMatrixWorld();
+    }
+    const f = fill.current;
+    if (f) {
+      f.position.copy(camera.position).addScaledVector(right, -2.6).addScaledVector(up, 0.6);
+      f.target.position.set(0, 1, 0);
+      f.target.updateMatrixWorld();
+    }
+  });
+
+  return (
+    <>
+      <spotLight ref={key} color={0xf4f5f8} intensity={140} distance={16} angle={0.8} penumbra={0.6} />
+      <directionalLight ref={fill} color={0xdfe4ef} intensity={0.9} />
+    </>
+  );
+}
+
 function Contents(props: SceneProps): React.ReactElement {
   const { gl, scene, camera } = useThree();
   // Hand the renderer out once so the click-to-annotate probe can render its
@@ -214,14 +256,7 @@ function Contents(props: SceneProps): React.ReactElement {
         <Environment files={ENV_FILE} environmentIntensity={ENV_INTENSITY} />
       </Suspense>
 
-      {/* The environment now does the ambient fill the hemisphere light used
-          to fake, so the analytic lights are back to doing only what image
-          based lighting cannot: a key with a falloff that pools on the
-          pedestal, and two rims for shape. Left at their old strengths they
-          simply added to the IBL and washed the chamber grey. */}
-      <spotLight position={[2.5, 4.5, 2.5]} color={0xf4f5f8} intensity={42} distance={14} angle={0.8} penumbra={0.5} />
-      <directionalLight position={[-2.5, 2.2, 3.2]} color={0xdfe4ef} intensity={0.45} />
-      <directionalLight position={[0, 2.5, -3.5]} color={0xaab2c4} intensity={0.3} />
+      <CameraLights />
 
       <PedestalMesh />
       {showSpell && (

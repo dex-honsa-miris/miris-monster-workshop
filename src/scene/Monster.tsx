@@ -94,8 +94,13 @@ function tuneGeneratedMaterials(root: THREE.Object3D): void {
       // The environment is here to light the creature, not to be mirrored by
       // it. Metalness is forced off: glTF defaults metallicFactor to 1, so a
       // model whose map happens to omit the channel would come back chrome.
+      // Roughness likewise: new files are matted server-side, but banked
+      // monsters from before that pass still carry a ~0.48 roughness map,
+      // which under the key reads as wet plastic.
       mat.envMapIntensity = MONSTER_ENV_INTENSITY;
       mat.metalness = 0;
+      mat.roughnessMap = null;
+      mat.roughness = 0.9;
 
       for (const map of [mat.map, mat.normalMap, mat.roughnessMap]) {
         if (map) { map.anisotropy = 8; map.needsUpdate = true; }

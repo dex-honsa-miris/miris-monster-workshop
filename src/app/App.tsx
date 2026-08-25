@@ -218,6 +218,8 @@ export function App(): React.ReactElement {
     glRef.current = gl;
     sceneRef.current = scene;
     camRef.current = cam;
+    // Dev affordance: lets tooling inspect the live scene graph.
+    (window as unknown as { __scene?: THREE.Scene }).__scene = scene;
   }, []);
 
   return (
