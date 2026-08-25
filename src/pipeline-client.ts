@@ -20,6 +20,8 @@ export const postAnnotate = (payload: { closeup: string; context: string; point:
 }> => call("/api/annotate", post(payload));
 export const postClearDiscoveries = (): Promise<{ discoveries: [] }> =>
   call("/api/discoveries/clear", post({}));
+export const postSparks = (path: string, avoid: string[]): Promise<{ groups: Array<{ label: string; options: string[] }> }> =>
+  call("/api/sparks", post({ path, avoid }));
 export const postSummonRetry = (): Promise<{ started: boolean }> =>
   call("/api/summon/retry", post({}));
 export const postLoadMonster = (id: string): Promise<{ id: string }> =>

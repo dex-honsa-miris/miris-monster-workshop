@@ -8,7 +8,7 @@ const IN_STACKBLITZ =
 import { flowPhase } from "./flow";
 import { Bank, Checklist, ConceptPanel, Dock, DocPanel, Note, PublishPanel, Working } from "./panels";
 import { useStatus } from "./useStatus";
-import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postSummonRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
+import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postSparks, postSummonRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import * as THREE from "three";
 import { Scene } from "../scene/Scene";
 import { captureProbe } from "../scene/probe";
@@ -16,6 +16,7 @@ import type { WorkshopDoc } from "../../server/lore-schema";
 import type { WorkshopStatus } from "../../server/status";
 import { PATH_IDS, PATHS, type PathId } from "../../server/paths";
 import { appendSpark, dealSparks, redealOne, type Spark } from "./sparks";
+import type { SparkGroup } from "../../server/paths";
 import type { Concept } from "../../server/state";
 
 const GLB_URL = "/generated/monster.glb";
@@ -50,16 +51,38 @@ export function App(): React.ReactElement {
   // The creation path for the NEXT sketch. The path of what is on the
   // pedestal travels with its document (doc.kind), not with this choice.
   const [pathChoice, setPathChoice] = useState<PathId>("monster");
-  // Spark chips: one fragment per group, redealt on path change, on demand,
-  // and (one at a time) whenever a chip is used.
-  const [sparks, setSparks] = useState<Spark[]>(() => dealSparks(PATHS.monster.sparks));
+  // Spark chips deal from a POOL. The static banks fill it instantly; the
+  // sparks workflow refills it in the background with fresh LLM fragments, so
+  // chips are never blocked on a network call and an unreachable fal (or a
+  // missing key during setup) quietly leaves the banks in charge.
+  const sparkPool = useRef<Record<PathId, SparkGroup[]>>({
+    monster: PATHS.monster.sparks,
+    product: PATHS.product.sparks,
+    artifact: PATHS.artifact.sparks,
+  });
+  const [sparks, setSparks] = useState<Spark[]>(() => dealSparks(sparkPool.current.monster));
+  const refillSparks = useCallback((id: PathId, shown: Spark[]): void => {
+    void postSparks(id, shown.map((sp) => sp.text))
+      .then(({ groups }) => { sparkPool.current[id] = groups; })
+      .catch(() => undefined); // banks remain; silence is the feature
+  }, []);
+  useEffect(() => { refillSparks("monster", []); }, [refillSparks]);
   const choosePath = (id: PathId): void => {
     setPathChoice(id);
-    setSparks(dealSparks(PATHS[id].sparks));
+    const dealt = dealSparks(sparkPool.current[id]);
+    setSparks(dealt);
+    refillSparks(id, dealt);
   };
   const onSpark = (spark: Spark): void => {
     setPrompt((cur) => appendSpark(cur, spark.text));
-    setSparks((cur) => cur.map((s) => (s === spark ? redealOne(PATHS[pathChoice].sparks, spark) : s)));
+    setSparks((cur) => cur.map((s) => (s === spark ? redealOne(sparkPool.current[pathChoice], spark) : s)));
+  };
+  const redealAll = (): void => {
+    const dealt = dealSparks(sparkPool.current[pathChoice]);
+    setSparks(dealt);
+    // Each shuffle also asks for a fresh batch, so variety compounds over
+    // the session instead of cycling the same twelve options.
+    refillSparks(pathChoice, dealt);
   };
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const { status, error, refresh } = useStatus();
@@ -344,7 +367,7 @@ export function App(): React.ReactElement {
                 disabled={busy}
                 aria-label="New sparks"
                 title="New sparks"
-                onClick={() => setSparks(dealSparks(PATHS[pathChoice].sparks))}
+                onClick={redealAll}
               >
                 ↻
               </button>

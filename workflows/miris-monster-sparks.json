@@ -1,0 +1,80 @@
+{
+ "name": "workflow",
+ "nodes": {
+  "deal": {
+   "type": "run",
+   "id": "deal",
+   "depends": [],
+   "metadata": {
+    "position": {
+     "x": 380,
+     "y": 0
+    }
+   },
+   "app": "fal-ai/any-llm",
+   "input": {
+    "model": "google/gemini-flash-1.5",
+    "system_prompt": "$input.sparks_system",
+    "prompt": "$input.prompt"
+   }
+  },
+  "output": {
+   "type": "display",
+   "id": "output",
+   "depends": [
+    "deal"
+   ],
+   "metadata": {
+    "position": {
+     "x": 760,
+     "y": 0
+    }
+   },
+   "input": {},
+   "fields": {
+    "sparks": "$deal.output"
+   }
+  }
+ },
+ "output": {
+  "sparks": "$deal.output"
+ },
+ "schema": {
+  "input": {
+   "prompt": {
+    "name": "text",
+    "label": "Text Field",
+    "description": "A text field",
+    "required": false,
+    "defaultValue": "",
+    "examples": [],
+    "ui": {
+     "field": "textarea"
+    },
+    "type": "string"
+   },
+   "sparks_system": {
+    "name": "text",
+    "label": "Text Field",
+    "description": "A text field",
+    "required": false,
+    "defaultValue": "",
+    "examples": [],
+    "ui": {
+     "field": "textarea"
+    },
+    "type": "string"
+   }
+  },
+  "output": {}
+ },
+ "version": "1",
+ "metadata": {
+  "input": {
+   "position": {
+    "x": 0,
+    "y": 0
+   }
+  }
+ }
+}

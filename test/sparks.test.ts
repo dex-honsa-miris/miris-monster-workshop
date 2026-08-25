@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appendSpark, dealSparks, redealOne } from "../src/app/sparks";
 import { PATH_IDS, PATHS } from "../server/paths";
+import { parseSparksOutput } from "../server/sparks";
 
 const GROUPS = [
   { label: "object", options: ["a mask", "a ring", "a drum"] },
@@ -67,5 +68,38 @@ describe("path word banks", () => {
         for (const o of g.options) expect(o[0]).toBe(o[0]!.toLowerCase());
       }
     }
+  });
+});
+
+describe("parseSparksOutput (LLM batch)", () => {
+  const batch = (groups: unknown) => ({ sparks: JSON.stringify({ groups }) });
+  const good = [
+    { label: "object", options: ["a small ceramic jug", "an ornate brooch", "a carved figurine", "a coin hoard", "a bone comb"] },
+    { label: "origin", options: ["from Roman Gaul", "from an Egyptian tomb", "from Mayan lowlands", "from ancient Greece"] },
+    { label: "detail", options: ["with traces of pigment", "covered in runes", "chipped on the rim", "smelling of cedar"] },
+  ];
+
+  it("parses a stringified batch off the workflow's sparks field", () => {
+    const groups = parseSparksOutput(batch(good));
+    expect(groups).toHaveLength(3);
+    expect(groups[0]!.options).toContain("a small ceramic jug");
+  });
+
+  it("strips markdown fences the model sometimes adds", () => {
+    const fenced = { sparks: "```json\n" + JSON.stringify({ groups: good }) + "\n```" };
+    expect(parseSparksOutput(fenced)).toHaveLength(3);
+  });
+
+  it("lowercases first characters and drops duplicates and trailing periods", () => {
+    const messy = [
+      { label: "object", options: ["A ceremonial mask.", "a ceremonial mask", "a drum", "a ring", "a comb"] },
+      good[1], good[2],
+    ];
+    const groups = parseSparksOutput(batch(messy));
+    expect(groups[0]!.options).toEqual(["a ceremonial mask", "a drum", "a ring", "a comb"]);
+  });
+
+  it("rejects a batch that is not exactly three groups", () => {
+    expect(() => parseSparksOutput(batch(good.slice(0, 2)))).toThrow();
   });
 });

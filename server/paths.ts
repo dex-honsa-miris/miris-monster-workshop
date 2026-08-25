@@ -42,8 +42,12 @@ export interface SparkGroup {
 export interface PathSpec {
   id: PathId;
   copy: PathCopy;
-  /** Blank-page antidote: fragments an attendee can assemble into a prompt. */
+  /** Blank-page antidote: fragments an attendee can assemble into a prompt.
+   * These are the SEED banks: shown instantly and used whenever the sparks
+   * workflow is unreachable; the LLM batch replaces them in the background. */
   sparks: SparkGroup[];
+  /** System prompt for the sparks workflow's LLM node. */
+  sparksSystem: string;
   /** Spell VFX tint while this path is generating. */
   spell: { color: number; secondaryColor: number };
   /** System prompt for the sketch workflow's prompt-shaper LLM node. */
@@ -134,6 +138,7 @@ Rules: describe only what you can actually see. Never name a part that is not vi
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Name: ${d.name}. World and tone: ${d.description}`,
     directDocPrompt: (t) => `The monster was summoned from this description: "${t}"`,
+    sparksSystem: "You deal prompt fragments that help a stuck attendee describe a creature for a monster-taming video game.\nReply with ONLY a JSON object, no markdown fences, matching exactly:\n{\"groups\": [3 of {\"label\": \"<the group name>\", \"options\": [10 of \"fragment\"]}]}\nThe three groups, in this order:\n- \"creature\": a base animal or being, phrased like \"a two-tailed ember fox\"\n- \"surface\": what covers its body, phrased like \"covered in cracked terracotta plates\"\n- \"quirk\": one charming habit or feature, phrased like \"that collects lost buttons\"\nEvery fragment: 2-8 words, lowercase start, no ending punctuation, written to be comma-joined mid-sentence with fragments from the other groups in order. Specific and evocative beats generic; vary wildly across the batch; never repeat an option. Tone: warm, playful, friendly-with-an-edge; never grimdark or gory.",
     sparks: [
       {
         label: "creature",
@@ -219,6 +224,7 @@ Rules: describe only what you can actually see. Never name a component that is n
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Product: ${d.name}. Listing: ${d.description}`,
     directDocPrompt: (t) => `Write the listing for the product described as: "${t}"`,
+    sparksSystem: "You deal prompt fragments that help a stuck attendee describe a physical product for a retail digital-twin catalog.\nReply with ONLY a JSON object, no markdown fences, matching exactly:\n{\"groups\": [3 of {\"label\": \"<the group name>\", \"options\": [10 of \"fragment\"]}]}\nThe three groups, in this order:\n- \"object\": an everyday manufacturable object, phrased like \"a pour-over kettle\"\n- \"materials\": its materials and finish, phrased like \"in brushed steel and walnut\"\n- \"feature\": one standout feature, phrased like \"with a hidden compartment\"\nEvery fragment: 2-8 words, lowercase start, no ending punctuation, written to be comma-joined mid-sentence with fragments from the other groups in order. Specific and evocative beats generic; vary wildly across the batch; never repeat an option. Objects must be real product categories; never name real brands or trademarks.",
     sparks: [
       {
         label: "object",
@@ -299,6 +305,7 @@ Rules: describe only what you can actually see. Never name a detail that is not 
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Artifact: ${d.name}. Exhibit label: ${d.description}`,
     directDocPrompt: (t) => `Write the exhibit label for the artifact described as: "${t}"`,
+    sparksSystem: "You deal prompt fragments that help a stuck attendee describe a museum artifact.\nReply with ONLY a JSON object, no markdown fences, matching exactly:\n{\"groups\": [3 of {\"label\": \"<the group name>\", \"options\": [10 of \"fragment\"]}]}\nThe three groups, in this order:\n- \"object\": a plausible historical object type, phrased like \"a ceremonial mask\"\n- \"origin\": a real culture, place or era, phrased like \"from Bronze Age Crete\"\n- \"detail\": one physical detail or gentle mystery, phrased like \"worn smooth by centuries of hands\"\nEvery fragment: 2-8 words, lowercase start, no ending punctuation, written to be comma-joined mid-sentence with fragments from the other groups in order. Specific and evocative beats generic; vary wildly across the batch; never repeat an option. Origins are real history; details stay physical and museum-plausible, never supernatural claims stated as fact.",
     sparks: [
       {
         label: "object",

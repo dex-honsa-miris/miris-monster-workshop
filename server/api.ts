@@ -9,6 +9,7 @@ import { patchState, readState, workshopDir, type MonsterRecord } from "./state"
 import { buildStatus } from "./status";
 import { matteGlb, smoothGlb } from "./mesh-smooth";
 import { pathOf } from "./paths";
+import { generateSparks } from "./sparks";
 import { parseDoc } from "./lore-schema";
 import { deploymentRecord } from "./deploy-core";
 import { workshopEnv } from "./env";
@@ -379,6 +380,20 @@ const routes: Record<string, Handler> = {
       upload: { glbSha: null, assetId: rec.assetId, state: rec.assetId ? "ready" : "none", error: null },
     });
     return { status: 200, json: { id } };
+  },
+
+  // Fresh spark fragments from the sparks workflow. The client boots on the
+  // static banks and swaps its pool when this lands; any failure here is the
+  // client's cue to just keep the banks, so errors stay quiet 502s.
+  "POST /api/sparks": async (body) => {
+    const path = pathOf(body.path);
+    const avoid = Array.isArray(body.avoid) ? (body.avoid as unknown[]).map(String).slice(0, 6) : [];
+    try {
+      const groups = await generateSparks({ key: env().FAL_KEY!, fetch }, path, avoid);
+      return { status: 200, json: { groups } };
+    } catch (e) {
+      return { status: 502, json: { error: "sparks unavailable", hint: String(e).slice(0, 200) } };
+    }
   },
 
   // After pressing Deploy in bolt.new, the attendee pastes the live link so
