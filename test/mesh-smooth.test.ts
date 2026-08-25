@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { smoothGlb } from "../server/mesh-smooth";
+import { matteGlb, smoothGlb } from "../server/mesh-smooth";
 
 /** Builds a minimal valid GLB: one indexed triangle-strip "staircase" ribbon
  * whose y alternates 0 / STEP -- the 1D version of the voxel stair-steps the
@@ -123,3 +123,62 @@ describe("smoothGlb", () => {
     expect(new Uint8Array(junk)).toEqual(new Uint8Array(copy));
   });
 });
+
+describe("matteGlb", () => {
+  it("states matte factors outright and drops the gloss texture reference", () => {
+    const { glb } = staircaseGlb();
+    // Graft a Meshy-shaped material: factors omitted (spec default 1.0),
+    // gloss carried by a texture -- the wet-dragon configuration.
+    const withMat = addMaterial(glb, { pbrMetallicRoughness: { metallicRoughnessTexture: { index: 0 } } });
+    const out = matteGlb(withMat);
+    const mats = readJson(out).materials as Array<{ pbrMetallicRoughness: Record<string, unknown> }>;
+    expect(mats[0]!.pbrMetallicRoughness.metallicFactor).toBe(0);
+    expect(mats[0]!.pbrMetallicRoughness.roughnessFactor).toBe(0.9);
+    expect(mats[0]!.pbrMetallicRoughness.metallicRoughnessTexture).toBeUndefined();
+  });
+
+  it("keeps the binary chunk byte-identical through the container rebuild", () => {
+    const { glb } = staircaseGlb();
+    const withMat = addMaterial(glb, { pbrMetallicRoughness: {} });
+    const binBefore = binChunk(withMat);
+    const out = matteGlb(withMat);
+    expect(binChunk(out)).toEqual(binBefore);
+    // And the rebuilt container is well formed.
+    const dv = new DataView(out);
+    expect(dv.getUint32(0, true)).toBe(0x46546c67);
+    expect(dv.getUint32(8, true)).toBe(out.byteLength);
+  });
+
+  it("passes a GLB with no materials through untouched", () => {
+    const { glb } = staircaseGlb();
+    expect(matteGlb(glb)).toBe(glb);
+  });
+});
+
+/** Re-serializes the test GLB with a material spliced into its JSON. */
+function addMaterial(glb: ArrayBuffer, material: unknown): ArrayBuffer {
+  const dv = new DataView(glb);
+  const jsonLen = dv.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, jsonLen)));
+  json.materials = [material];
+  const raw = new TextEncoder().encode(JSON.stringify(json));
+  const padded = new Uint8Array(Math.ceil(raw.length / 4) * 4).fill(0x20);
+  padded.set(raw);
+  const bin = new Uint8Array(glb, 20 + jsonLen);
+  const out = new ArrayBuffer(20 + padded.length + bin.length);
+  const odv = new DataView(out);
+  const u8 = new Uint8Array(out);
+  odv.setUint32(0, 0x46546c67, true); odv.setUint32(4, 2, true);
+  odv.setUint32(8, out.byteLength, true);
+  odv.setUint32(12, padded.length, true); odv.setUint32(16, 0x4e4f534a, true);
+  u8.set(padded, 20); u8.set(bin, 20 + padded.length);
+  return out;
+}
+function readJson(glb: ArrayBuffer): { materials?: unknown[] } {
+  const dv = new DataView(glb);
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, dv.getUint32(12, true))));
+}
+function binChunk(glb: ArrayBuffer): Uint8Array {
+  const dv = new DataView(glb);
+  return new Uint8Array(glb, 20 + dv.getUint32(12, true)).slice();
+}

@@ -165,3 +165,62 @@ function smoothInPlace(input: ArrayBuffer, iterations: number): void {
     }
   }
 }
+
+/** How rough the exported creature is, everywhere. The art bible demands
+ * "strictly matte, like unvarnished painted resin"; this is that surface. */
+const MATTE_ROUGHNESS = 0.9;
+
+/**
+ * Make the GLB matte for EVERY viewer, not just ours.
+ *
+ * Meshy omits metallicFactor/roughnessFactor, so spec-compliant viewers
+ * default both to 1.0 and read the metallic-roughness texture instead --
+ * which ships at roughness ~0.48, half gloss. Our renderer tames that at
+ * load, but the file goes places we do not render: the Miris portal, the
+ * published viewer, anyone's glTF tool. Factors can only multiply the
+ * texture downward, so matte means dropping the texture reference and
+ * stating the factors outright. The JSON chunk changes length, so unlike
+ * smoothing this rebuilds the container (BIN chunk byte-identical).
+ */
+export function matteGlb(input: ArrayBuffer): ArrayBuffer {
+  try {
+    const dv = new DataView(input);
+    if (dv.getUint32(0, true) !== 0x46546c67) throw new Error("not a GLB");
+    const jsonLen = dv.getUint32(12, true);
+    const gltf = JSON.parse(new TextDecoder().decode(new Uint8Array(input, 20, jsonLen))) as {
+      materials?: Array<{ pbrMetallicRoughness?: Record<string, unknown> }>;
+    };
+    if (!gltf.materials?.length) return input;
+    for (const m of gltf.materials) {
+      const pbr = (m.pbrMetallicRoughness ??= {});
+      pbr.metallicFactor = 0;
+      pbr.roughnessFactor = MATTE_ROUGHNESS;
+      // The texture stays in the file (removing bytes would mean re-indexing
+      // every bufferView); unreferenced, no loader samples it.
+      delete pbr.metallicRoughnessTexture;
+    }
+
+    const jsonText = JSON.stringify(gltf);
+    const jsonRaw = new TextEncoder().encode(jsonText);
+    const jsonPadded = new Uint8Array(Math.ceil(jsonRaw.length / 4) * 4).fill(0x20);
+    jsonPadded.set(jsonRaw);
+
+    const binHeaderAt = 20 + jsonLen;
+    const binChunk = new Uint8Array(input, binHeaderAt, input.byteLength - binHeaderAt);
+
+    const out = new ArrayBuffer(20 + jsonPadded.length + binChunk.length);
+    const odv = new DataView(out);
+    const ou8 = new Uint8Array(out);
+    odv.setUint32(0, 0x46546c67, true);
+    odv.setUint32(4, 2, true);
+    odv.setUint32(8, out.byteLength, true);
+    odv.setUint32(12, jsonPadded.length, true);
+    odv.setUint32(16, 0x4e4f534a, true);
+    ou8.set(jsonPadded, 20);
+    ou8.set(binChunk, 20 + jsonPadded.length);
+    return out;
+  } catch (e) {
+    console.warn("[workshop] matte pass skipped:", e);
+    return input;
+  }
+}

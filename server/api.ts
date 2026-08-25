@@ -7,7 +7,7 @@ import { annotateFeature, generateLoreLLM, manifestMonster, MANIFEST_WORKFLOW, s
 import { probeFal } from "./probes";
 import { patchState, readState, workshopDir, type MonsterRecord } from "./state";
 import { buildStatus } from "./status";
-import { smoothGlb } from "./mesh-smooth";
+import { matteGlb, smoothGlb } from "./mesh-smooth";
 import { parseLore, type MonsterLore } from "./lore-schema";
 import { deploymentRecord } from "./deploy-core";
 import { workshopEnv } from "./env";
@@ -169,7 +169,7 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
       );
       // Erase the reconstruction lattice before the model goes anywhere:
       // the scene, the bank, and the portal upload all read these files.
-      const glb = smoothGlb(m.glb);
+      const glb = matteGlb(smoothGlb(m.glb));
       await mkdir(workshopDir(), { recursive: true });
       await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
       await writeFile(glbFile(), Buffer.from(glb));
