@@ -189,7 +189,8 @@ ${ANNOTATE_SHAPE}`,
       codexTitle: "Spec sheet",
       discoverHint: "No callouts yet. Click any part of the product to spec it.",
     },
-    spell: { color: 0xff7a45, secondaryColor: 0xb32d00 },
+    // The product effect is a silver holographic vitrine, not a fire ritual.
+    spell: { color: 0xdfe9f2, secondaryColor: 0x8fb2c9 },
     shaperSystem:
       `You turn a merchant's product idea into ONE image-generation prompt for a retail digital-twin catalog.\n${SHAPER_PREAMBLE}\n${FRAMING}\n` +
       "Always require this style: professional e-commerce product photography of a single physical product, photorealistic, " +

@@ -35,10 +35,12 @@ interface ConceptState extends Pick<Concept, "id" | "prompt" | "imageUrl"> {
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-/** The path of the approved concept, as reported through the bank. */
+/** The approved concept's path: what is being (or was last) summoned. The
+ * current BANK entry is wrong here -- during a summon it still names the
+ * previous creature, which would put the wrong effect on the pedestal. */
 function pathOfConcept(status: WorkshopStatus | null): PathId | null {
-  const cur = status?.monsters.find((m) => m.current);
-  return cur && (PATH_IDS as readonly string[]).includes(cur.path) ? (cur.path as PathId) : null;
+  const p = status?.approvedPath;
+  return p && (PATH_IDS as readonly string[]).includes(p) ? (p as PathId) : null;
 }
 
 export function App(): React.ReactElement {

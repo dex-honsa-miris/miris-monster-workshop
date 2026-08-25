@@ -22,6 +22,8 @@ export interface MonsterSummary {
 
 export interface WorkshopStatus {
   monsters: MonsterSummary[];
+  /** Path of the approved (possibly still-summoning) concept. */
+  approvedPath: string | null;
   /** Versions the GLB URL. three caches loaded models BY URL, so without a
    * changing key a newly summoned creature would silently render as the
    * previous one -- same path, same cache entry. */
@@ -66,6 +68,7 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
     deps.state(),
   ]);
   return {
+    approvedPath: state.concepts.find((c) => c.id === state.approvedConceptId)?.path ?? null,
     monsters: state.monsters.map((m) => ({
       id: m.id,
       name: m.name,

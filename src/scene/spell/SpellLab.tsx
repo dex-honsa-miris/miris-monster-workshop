@@ -10,6 +10,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useEffect, useRef, useState } from "react";
+import { CubeLoaderView } from "./CubeLoaderView";
 import { SpellLoader } from "./SpellLoader";
 import { SpellLoaderView } from "./SpellLoaderView";
 
@@ -64,7 +65,11 @@ export function SpellLab(): React.ReactElement {
       {pinned === null && (
         <Cycle onProgress={(p) => { if (p === 0) setKey((k) => k + 1); setProgress(p); }} />
       )}
-      <SpellLoaderView key={key} progress={progress} radius={1} height={2.2} onReady={setLoader} />
+      {params().get("spell") === "cube" ? (
+        <CubeLoaderView key={key} progress={progress} radius={1} height={2.2} onReady={setLoader as never} />
+      ) : (
+        <SpellLoaderView key={key} progress={progress} radius={1} height={2.2} onReady={setLoader} />
+      )}
       <Debug loader={loader} />
       <OrbitControls target={[0, 1.1, 0]} enablePan={false} />
       {bloom && (

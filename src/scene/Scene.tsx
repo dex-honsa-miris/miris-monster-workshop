@@ -13,6 +13,7 @@ import type { FlowPhase } from "../app/flow";
 import { Monster } from "./Monster";
 import { PedestalMesh } from "./PedestalMesh";
 import { PATHS, type PathId } from "../../server/paths";
+import { CubeLoaderView } from "./spell/CubeLoaderView";
 import type { SpellLoader } from "./spell/SpellLoader";
 import { SpellLoaderView } from "./spell/SpellLoaderView";
 import { FLASH_IN, revealFlash } from "./spell/reveal";
@@ -83,7 +84,8 @@ function SummonSpell({ done, fast, floor, pathId, onFinished, flashRef, onFlash 
   const floorRef = useRef(floor);
   floorRef.current = floor;
   const elapsed = useRef(0);
-  const loader = useRef<SpellLoader | null>(null);
+  // Either loader: both expose the same burst/progress surface.
+  const loader = useRef<Pick<SpellLoader, "burst" | "progress"> | null>(null);
   const announced = useRef(false);
   const doneRef = useRef(done);
   doneRef.current = done;
@@ -108,20 +110,21 @@ function SummonSpell({ done, fast, floor, pathId, onFinished, flashRef, onFlash 
     return Math.max(eased, Math.min(SUMMON_CEILING, floorRef.current));
   }, [fast]);
 
+  // Shared placement: sized to the space the creature/product will occupy,
+  // sitting on the pedestal top (y 0.5).
+  const common = {
+    progressSource: source,
+    onComplete: onFinished,
+    onReady: (l: Pick<SpellLoader, "burst" | "progress">) => { loader.current = l; },
+    color: spell.color,
+    secondaryColor: spell.secondaryColor,
+    radius: 0.78,
+    height: 1.45,
+    position: [0, 0.5, 0] as [number, number, number],
+  };
   return (
     <Select enabled>
-      <SpellLoaderView
-        progressSource={source}
-        onComplete={onFinished}
-        onReady={(l) => { loader.current = l; }}
-        color={spell.color}
-        secondaryColor={spell.secondaryColor}
-        // Sized to the space the monster will occupy: the base sigil sits on
-        // the pedestal top (y 0.5) and the cage encloses the creature.
-        radius={0.78}
-        height={1.45}
-        position={[0, 0.5, 0]}
-      />
+      {pathId === "product" ? <CubeLoaderView {...common} /> : <SpellLoaderView {...common} />}
     </Select>
   );
 }
