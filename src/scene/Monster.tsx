@@ -62,7 +62,10 @@ const MONSTER_ENV_INTENSITY = 0.35;
  * up as crunchy, crawling seams. Computing real tangents once, at load, fixes
  * the shading rather than hiding it.
  */
-function tuneGeneratedMaterials(root: THREE.Object3D): void {
+function tuneGeneratedMaterials(root: THREE.Object3D, kind: "monster" | "product" | "artifact"): void {
+  // Products and artifacts are PBR assets: steel must reflect, bronze must
+  // sheen. Only the monster path forces the matte game-asset look.
+  const matte = kind === "monster";
   const tangentsDone = new Set<THREE.BufferGeometry>();
 
   let triangles = 0;
@@ -91,16 +94,19 @@ function tuneGeneratedMaterials(root: THREE.Object3D): void {
         mat.normalScale.set(normalStrength, normalStrength);
       }
 
-      // The environment is here to light the creature, not to be mirrored by
-      // it. Metalness is forced off: glTF defaults metallicFactor to 1, so a
-      // model whose map happens to omit the channel would come back chrome.
-      // Roughness likewise: new files are matted server-side, but banked
-      // monsters from before that pass still carry a ~0.48 roughness map,
-      // which under the key reads as wet plastic.
-      mat.envMapIntensity = MONSTER_ENV_INTENSITY;
-      mat.metalness = 0;
-      mat.roughnessMap = null;
-      mat.roughness = 0.9;
+      if (matte) {
+        // The environment is here to light the creature, not to be mirrored
+        // by it. Metalness forced off (glTF defaults metallicFactor to 1),
+        // and pre-matte banked monsters still carry a glossy roughness map.
+        mat.envMapIntensity = MONSTER_ENV_INTENSITY;
+        mat.metalness = 0;
+        mat.roughnessMap = null;
+        mat.roughness = 0.9;
+      } else {
+        // Full environment response: this is what makes metal read as metal
+        // under the chapel HDRI instead of as painted plastic.
+        mat.envMapIntensity = 1.0;
+      }
 
       for (const map of [mat.map, mat.normalMap, mat.roughnessMap]) {
         if (map) { map.anisotropy = 8; map.needsUpdate = true; }
@@ -260,6 +266,8 @@ function Annotation({ spec, open }: { spec: AnnotationSpec; open: boolean }): Re
 
 export interface MonsterProps {
   url: string;
+  /** Document kind of the creature/product on the pedestal. */
+  kind?: "monster" | "product" | "artifact";
   /** 0..1 white-overlay amount, read every frame. Driven by the summoning
    * flash, so the creature emerges out of the light. */
   flashRef?: { current: number };
@@ -269,7 +277,7 @@ export interface MonsterProps {
   onHotspotClick: (id: string) => void;
 }
 
-export function Monster({ url, discoveries, pinned, onPickPoint, onHotspotClick, flashRef }: MonsterProps): React.ReactElement {
+export function Monster({ url, kind = "monster", discoveries, pinned, onPickPoint, onHotspotClick, flashRef }: MonsterProps): React.ReactElement {
   const { scene } = useGLTF(url);
   const mount = useRef<THREE.Group>(null);
   const wasDrag = useDragGuard();
@@ -289,9 +297,9 @@ export function Monster({ url, discoveries, pinned, onPickPoint, onHotspotClick,
     );
     clone.scale.setScalar(fit.scale);
     clone.position.copy(fit.position);
-    tuneGeneratedMaterials(clone);
+    tuneGeneratedMaterials(clone, kind);
     return clone;
-  }, [scene]);
+  }, [scene, kind]);
 
   // A white stand-in for the model, drawn over it. Cloning and overriding is
   // what keeps this safe: useGLTF caches one scene and clone(true) SHARES

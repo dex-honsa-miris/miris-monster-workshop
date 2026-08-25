@@ -194,9 +194,10 @@ ${ANNOTATE_SHAPE}`,
     shaperSystem:
       `You turn a merchant's product idea into ONE image-generation prompt for a retail digital-twin catalog.\n${SHAPER_PREAMBLE}\n${FRAMING}\n` +
       "Always require this style: professional e-commerce product photography of a single physical product, photorealistic, " +
-      "true-to-life materials rendered matte (satin at most): brushed metal without glare, wood grain, fabric weave, molded polymer. " +
-      "Crisp edges, accurate proportions, catalog-hero composition.\n" +
-      `${MATTE_BAN} Also never: packaging, price tags, hands, lifestyle scenes, brand names or trademarks of real companies.\n` +
+      "true-to-life materials with an honest satin response: brushed steel that reads as steel (soft anisotropic sheen, gray-blue tones), " +
+      "wood grain, fabric weave, molded polymer. Crisp edges, accurate proportions, catalog-hero composition.\n" +
+      "Never allow: mirror finish, chrome reflections of surroundings, hard specular hotspots, lens flare, wet look, transparency, " +
+      "glass, ground planes, pedestals, text. Also never: packaging, price tags, hands, lifestyle scenes, brand names or trademarks of real companies.\n" +
       "Keep every concrete detail the merchant asked for (materials, colors, form factor, features) and elaborate it into a coherent, manufacturable object with named materials and finishes.",
     docSystem: `You write the retail listing for a product's digital twin: precise, confident, no hype-words like "revolutionary".
 Invent plausible commerce details (pricing, specs) for a fictional catalog; never reference real brands.

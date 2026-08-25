@@ -280,6 +280,7 @@ export function App(): React.ReactElement {
       <Scene
         phase={phase}
         pathId={pathOfConcept(status) ?? pathChoice}
+        docKind={lore?.kind ?? pathOfConcept(status) ?? "monster"}
         replayNonce={replayNonce}
         status={status}
         monsterUrl={modelReady ? `${GLB_URL}?v=${status?.currentMonsterId ?? "0"}` : null}

@@ -181,7 +181,12 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
       );
       // Erase the reconstruction lattice before the model goes anywhere:
       // the scene, the bank, and the portal upload all read these files.
-      const glb = matteGlb(smoothGlb(m.glb));
+      // The matte pass is MONSTER doctrine (game-asset style): products and
+      // artifacts keep Meshy's PBR maps -- a stainless kettle without its
+      // metalness channel is white plastic (measured: the map ships metal
+      // ~0.65 / roughness ~0.35, correct for steel).
+      const smoothed = smoothGlb(m.glb);
+      const glb = path.id === "monster" ? matteGlb(smoothed) : smoothed;
       await mkdir(workshopDir(), { recursive: true });
       await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
       await writeFile(glbFile(), Buffer.from(glb));

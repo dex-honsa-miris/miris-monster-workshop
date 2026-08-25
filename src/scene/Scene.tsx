@@ -52,6 +52,8 @@ export interface SceneProps {
   phase: FlowPhase;
   /** Which creation path is generating: tints the summoning spell. */
   pathId?: PathId;
+  /** Document kind of the CURRENT model, for material treatment. */
+  docKind?: PathId;
   /** Increment to replay the summoning. 0 or undefined never replays. */
   replayNonce?: number;
   status: WorkshopStatus | null;
@@ -301,6 +303,7 @@ function Contents(props: SceneProps): React.ReactElement {
         <Suspense fallback={null}>
           <Monster
             url={props.monsterUrl}
+            kind={props.docKind ?? "monster"}
             discoveries={props.status?.discoveries ?? []}
             pinned={props.pinned}
             onPickPoint={props.onPickPoint}
