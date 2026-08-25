@@ -3,6 +3,7 @@ import { annotationMarkup, esc, statsMarkup } from "../src/scene/card-html";
 import type { MonsterLore } from "../server/lore-schema";
 
 const LORE: MonsterLore = {
+  kind: "monster",
   name: "Gloamroot",
   epithet: "the Lantern-Eyed",
   lore: "Grown from a forgotten shrine.",

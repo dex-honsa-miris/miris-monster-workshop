@@ -544,6 +544,63 @@ html, body, #root {
 .publish .btn:hover { border-color: var(--muted); }
 .publish .btn:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1); }
 
+/* --- Path selector: which world the next creation belongs to. --- */
+.overlay .path-row { gap: 6px; }
+.path-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  font: 500 12px var(--sans);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.path-chip:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
+.path-chip[data-active] {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: var(--ground-lift);
+}
+.path-chip:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1); }
+.path-chip:disabled { opacity: 0.5; cursor: default; }
+
+/* --- Product spec sheet --- */
+.highlights { margin: 12px 0 16px; padding: 0 0 0 18px; }
+.highlights li { margin-top: 6px; font: 13px/1.45 var(--sans); color: var(--ink); }
+.attrs { margin: 8px 0 0; }
+.attr { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.attr:last-child { border-bottom: none; }
+.attr dt { font: 12px var(--sans); color: var(--muted); }
+.attr dd { margin: 0; font: 13px var(--sans); color: var(--ink); }
+
+/* --- Museum label --- */
+.artifact-summary { border-top: none; padding-top: 0; margin-top: 12px; }
+.figures { margin: 10px 0 0; padding: 0; list-style: none; }
+.figures li { margin-top: 12px; }
+.figure-name { font: 600 13px var(--sans); color: var(--ink); }
+.figure-role { font: italic 12px var(--sans); color: var(--muted); margin-left: 6px; }
+.figure-story { margin: 3px 0 0; font: 13px/1.5 var(--sans); color: var(--muted); }
+.figures-note {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font: italic 11px/1.5 var(--sans);
+  color: var(--dim);
+}
+
+/* Bank tiles carry a small badge for non-monster paths. */
+.bank-path {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 500 9px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* --- The error card, now dismissible --- */
 .overlay .note {
   display: flex;

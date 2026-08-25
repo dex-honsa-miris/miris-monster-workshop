@@ -10,7 +10,8 @@
 // lore); React escapes it by construction, so there is no esc() to remember.
 import { useState } from "react";
 import type { Phase } from "./checklist-model";
-import type { MonsterLore } from "../../server/lore-schema";
+import type { ArtifactDoc, MonsterLore, ProductDoc, WorkshopDoc } from "../../server/lore-schema";
+import { PATHS, type PathId } from "../../server/paths";
 import { STATE_ICON, statBars } from "./panel-model";
 
 /** A side column. Rails and any panels beneath them stack in here, so the
@@ -88,18 +89,87 @@ export function ConceptPanel({
   );
 }
 
-export function LorePanel({ lore, iconUrl }: { lore: MonsterLore; iconUrl?: string | null }): React.ReactElement {
-  // The emblem is written next to the model only when the workflow returned
-  // one, and nothing in /api/status reports whether it did. Rather than widen
-  // the status contract for one decorative image, ask for it and drop it if
-  // it is not there.
-  const [iconBroken, setIconBroken] = useState(false);
+/** The right-rail document, rendered per path. Monster gets its RPG codex,
+ * product a spec sheet, artifact a museum label; the rail title follows. */
+export function DocPanel({ doc, iconUrl }: { doc: WorkshopDoc; iconUrl?: string | null }): React.ReactElement {
+  const title = PATHS[doc.kind].copy.codexTitle;
+  if (doc.kind === "product") return <ProductPanel doc={doc} iconUrl={iconUrl} title={title} />;
+  if (doc.kind === "artifact") return <ArtifactPanel doc={doc} iconUrl={iconUrl} title={title} />;
+  return <LorePanel lore={doc} iconUrl={iconUrl} title={title} />;
+}
+
+/** The emblem, falling back to nothing: a wiped public/ folder should cost a
+ * picture, not a broken tile. Shared by all three document panels. */
+function DocIcon({ iconUrl }: { iconUrl?: string | null }): React.ReactElement | null {
+  const [broken, setBroken] = useState(false);
+  if (!iconUrl || broken) return null;
+  return <img className="lore-icon" src={iconUrl} alt="" onError={() => setBroken(true)} />;
+}
+
+function ProductPanel({ doc, iconUrl, title }: { doc: ProductDoc; iconUrl?: string | null; title: string }): React.ReactElement {
+  const price = new Intl.NumberFormat("en-US", { style: "currency", currency: doc.price.currency || "USD", maximumFractionDigits: 0 }).format(doc.price.amount);
   return (
-    <Rail side="right" title="Codex">
+    <Rail side="right" title={title}>
       <header className="lore-head">
-        {iconUrl && !iconBroken && (
-          <img className="lore-icon" src={iconUrl} alt="" onError={() => setIconBroken(true)} />
-        )}
+        <DocIcon iconUrl={iconUrl} />
+        <h2 className="lore-name">{doc.name}</h2>
+        <p className="lore-epithet">{doc.tagline}</p>
+        <p className="eyebrow accent">{doc.category} / {price}</p>
+      </header>
+
+      <ul className="highlights">
+        {doc.highlights.map((h) => <li key={h}>{h}</li>)}
+      </ul>
+
+      <h3 className="eyebrow">Specifications</h3>
+      <dl className="attrs">
+        {doc.attributes.map((a) => (
+          <div className="attr" key={a.label}>
+            <dt>{a.label}</dt>
+            <dd>{a.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <p className="lore-prose">{doc.description}</p>
+    </Rail>
+  );
+}
+
+function ArtifactPanel({ doc, iconUrl, title }: { doc: ArtifactDoc; iconUrl?: string | null; title: string }): React.ReactElement {
+  return (
+    <Rail side="right" title={title}>
+      <header className="lore-head">
+        <DocIcon iconUrl={iconUrl} />
+        <h2 className="lore-name">{doc.name}</h2>
+        <p className="lore-epithet">{doc.era}</p>
+        <p className="eyebrow accent">Origin / {doc.origin}</p>
+      </header>
+
+      <p className="lore-prose artifact-summary">{doc.description}</p>
+
+      <h3 className="eyebrow">Notable figures</h3>
+      <ul className="figures">
+        {doc.figures.map((f) => (
+          <li key={f.name}>
+            <span className="figure-name">{f.name}</span>
+            <span className="figure-role">{f.role}</span>
+            <p className="figure-story">{f.story}</p>
+          </li>
+        ))}
+      </ul>
+      {/* The people are real; their connection to this object is not. Said
+          plainly on the label, the way a playful exhibit would. */}
+      <p className="figures-note">Figures are historical; their ties to this piece are museum legend.</p>
+    </Rail>
+  );
+}
+
+function LorePanel({ lore, iconUrl, title }: { lore: MonsterLore; iconUrl?: string | null; title: string }): React.ReactElement {
+  return (
+    <Rail side="right" title={title}>
+      <header className="lore-head">
+        <DocIcon iconUrl={iconUrl} />
         <h2 className="lore-name">{lore.name}</h2>
         <p className="lore-epithet">{lore.epithet}</p>
         <p className="eyebrow accent">Element / {lore.element}</p>
@@ -199,6 +269,7 @@ export interface BankEntry {
   id: string;
   name: string;
   epithet: string;
+  path: string;
   prompt: string;
   iconUrl: string;
   current: boolean;
@@ -232,7 +303,12 @@ export function Bank({
             >
               <BankThumb entry={m} />
               <span className="bank-text">
-                <span className="bank-name">{m.name}</span>
+                <span className="bank-name">
+                  {m.name}
+                  {m.path !== "monster" && (
+                    <span className="bank-path">{PATHS[m.path as PathId]?.copy.label ?? m.path}</span>
+                  )}
+                </span>
                 <span className="bank-epithet">{m.current ? "On the pedestal" : m.epithet}</span>
               </span>
             </button>

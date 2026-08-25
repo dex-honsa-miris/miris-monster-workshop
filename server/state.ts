@@ -6,6 +6,9 @@ export interface Concept {
   prompt: string;
   imageUrl: string;
   createdAt: string;
+  /** Which creation path this concept was sketched on. Absent on concepts
+   * from before paths existed, which were all monsters. */
+  path?: string;
   /** The shaper's art-direction paragraph for this concept. Carried forward
    * so the texturing stage is told the same style the image was drawn to. */
   styledPrompt?: string | null;
@@ -30,6 +33,7 @@ export interface MonsterRecord {
   prompt: string;
   name: string;
   epithet: string;
+  path?: string;
   createdAt: string;
   discoveries: StoredDiscovery[];
   assetId: string | null;

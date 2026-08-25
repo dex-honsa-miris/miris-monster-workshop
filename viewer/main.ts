@@ -17,7 +17,7 @@ async function boot(): Promise<void> {
   if (!res.ok) throw new Error(`monster.config.json ${res.status}`);
   const config = loadConfig(await res.json());
 
-  document.title = `${config.lore.name}, ${config.lore.epithet}`;
+  document.title = config.lore ? `${config.lore.name}, ${config.lore.epithet}` : "Miris asset";
   say("Summoning the monster");
 
   const stage = await createViewerStage(config.viewerKey);
@@ -31,7 +31,7 @@ async function boot(): Promise<void> {
     say(`The monster never arrived. Asset ${config.assetId} did not stream in.`);
     return;
   }
-  stage.applyLore(config.lore);
+  if (config.lore) stage.applyLore(config.lore);
   status.hidden = true;
 }
 

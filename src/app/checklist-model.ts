@@ -41,7 +41,7 @@ export function checklistFrom(status: WorkshopStatus | null, env: ChecklistEnv =
         { id: "concept", label: "Generate a concept", state: (s?.concept.count ?? 0) > 0 ? "done" : "todo", detail: s && s.concept.count > 1 ? `${s.concept.count} rerolls` : undefined },
         { id: "approve", label: "Approve your favorite", state: s?.concept.approved ? "done" : "todo" },
         {
-          id: "model", label: "Summon the 3D monster",
+          id: "model", label: "Summon the 3D model",
           state: s?.model.status === "done" ? "done" : s?.model.status === "running" ? "doing" : s?.model.status === "failed" ? "error" : "todo",
           detail: s?.model.error ?? undefined,
         },

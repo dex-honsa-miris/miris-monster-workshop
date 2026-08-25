@@ -12,6 +12,7 @@ import type { WorkshopStatus } from "../../server/status";
 import type { FlowPhase } from "../app/flow";
 import { Monster } from "./Monster";
 import { PedestalMesh } from "./PedestalMesh";
+import { PATHS, type PathId } from "../../server/paths";
 import type { SpellLoader } from "./spell/SpellLoader";
 import { SpellLoaderView } from "./spell/SpellLoaderView";
 import { FLASH_IN, revealFlash } from "./spell/reveal";
@@ -48,6 +49,8 @@ const BLOOM_THRESHOLD = 0.3;
 
 export interface SceneProps {
   phase: FlowPhase;
+  /** Which creation path is generating: tints the summoning spell. */
+  pathId?: PathId;
   /** Increment to replay the summoning. 0 or undefined never replays. */
   replayNonce?: number;
   status: WorkshopStatus | null;
@@ -60,6 +63,7 @@ export interface SceneProps {
 
 interface SummonSpellProps {
   done: boolean;
+  pathId: PathId;
   /** Replay: fill quickly rather than tracking a real generation. */
   fast: boolean;
   /** Milestone floor from the workflow's node events (0..1). The bar never
@@ -74,7 +78,8 @@ interface SummonSpellProps {
 }
 
 /** The summoning effect, driven from the render loop rather than from state. */
-function SummonSpell({ done, fast, floor, onFinished, flashRef, onFlash }: SummonSpellProps): React.ReactElement {
+function SummonSpell({ done, fast, floor, pathId, onFinished, flashRef, onFlash }: SummonSpellProps): React.ReactElement {
+  const spell = PATHS[pathId].spell;
   const floorRef = useRef(floor);
   floorRef.current = floor;
   const elapsed = useRef(0);
@@ -109,6 +114,8 @@ function SummonSpell({ done, fast, floor, onFinished, flashRef, onFlash }: Summo
         progressSource={source}
         onComplete={onFinished}
         onReady={(l) => { loader.current = l; }}
+        color={spell.color}
+        secondaryColor={spell.secondaryColor}
         // Sized to the space the monster will occupy: the base sigil sits on
         // the pedestal top (y 0.5) and the cage encloses the creature.
         radius={0.78}
@@ -276,7 +283,8 @@ function Contents(props: SceneProps): React.ReactElement {
       <PedestalMesh />
       {showSpell && (
         <SummonSpell
-          key={run?.key ?? 0}
+          key={`${run?.key ?? 0}-${props.pathId ?? "monster"}`}
+          pathId={props.pathId ?? "monster"}
           fast={run?.fast ?? false}
           floor={props.status?.model.progress ?? 0}
           done={props.phase === "reveal"}

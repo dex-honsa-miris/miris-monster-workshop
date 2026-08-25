@@ -1,4 +1,4 @@
-import { parseLore, type MonsterLore } from "../server/lore-schema";
+import { loreSchema, type MonsterLore } from "../server/lore-schema";
 
 /** The baked contract the deploy script writes into `viewer/monster.config.json`.
  *  `viewerKey` is optional: whether a processed asset is readable by uuid alone
@@ -7,7 +7,8 @@ import { parseLore, type MonsterLore } from "../server/lore-schema";
  *  when it is not. */
 export interface ViewerConfig {
   assetId: string;
-  lore: MonsterLore;
+  /** Monster codex data, or null when the asset is a product/artifact. */
+  lore: MonsterLore | null;
   viewerKey?: string;
 }
 
@@ -16,7 +17,11 @@ export function loadConfig(raw: unknown): ViewerConfig {
   const assetId = String(cfg.assetId ?? "");
   if (!assetId) throw new Error("monster.config.json is missing assetId");
   const viewerKey = cfg.viewerKey == null ? "" : String(cfg.viewerKey);
-  const config: ViewerConfig = { assetId, lore: parseLore(cfg.lore) };
+  // The published viewer's stats card only knows the monster shape. Product
+  // and artifact documents ride through as null: the model still shows, the
+  // card simply stays hidden. (A per-path viewer card is future work.)
+  const parsed = loreSchema.safeParse({ kind: "monster", ...(cfg.lore as Record<string, unknown> ?? {}) });
+  const config: ViewerConfig = { assetId, lore: parsed.success ? parsed.data : null };
   if (viewerKey) config.viewerKey = viewerKey;
   return config;
 }

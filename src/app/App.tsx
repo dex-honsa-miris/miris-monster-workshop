@@ -6,13 +6,15 @@ import { checklistFrom } from "./checklist-model";
 const IN_STACKBLITZ =
   typeof location !== "undefined" && /webcontainer|local-credentialless|stackblitz/i.test(location.hostname);
 import { flowPhase } from "./flow";
-import { Bank, Checklist, ConceptPanel, Dock, LorePanel, Note, PublishPanel, Working } from "./panels";
+import { Bank, Checklist, ConceptPanel, Dock, DocPanel, Note, PublishPanel, Working } from "./panels";
 import { useStatus } from "./useStatus";
 import { fetchLore, postAnnotate, postApprove, postClearDiscoveries, postConcept, postLoadMonster, postLoreRetry, postSummonRetry, postAssetId, postDeployedUrl } from "../pipeline-client";
 import * as THREE from "three";
 import { Scene } from "../scene/Scene";
 import { captureProbe } from "../scene/probe";
-import type { MonsterLore } from "../../server/lore-schema";
+import type { WorkshopDoc } from "../../server/lore-schema";
+import type { WorkshopStatus } from "../../server/status";
+import { PATH_IDS, PATHS, type PathId } from "../../server/paths";
 import type { Concept } from "../../server/state";
 
 const GLB_URL = "/generated/monster.glb";
@@ -31,13 +33,22 @@ interface ConceptState extends Pick<Concept, "id" | "prompt" | "imageUrl"> {
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** The path of the approved concept, as reported through the bank. */
+function pathOfConcept(status: WorkshopStatus | null): PathId | null {
+  const cur = status?.monsters.find((m) => m.current);
+  return cur && (PATH_IDS as readonly string[]).includes(cur.path) ? (cur.path as PathId) : null;
+}
+
 export function App(): React.ReactElement {
   // R3F hands these out once the canvas exists. The annotate probe needs the
   // renderer; nothing else reaches into the scene imperatively any more.
   const glRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const camRef = useRef<THREE.Camera | null>(null);
-  const [lore, setLore] = useState<MonsterLore | null>(null);
+  const [lore, setLore] = useState<WorkshopDoc | null>(null);
+  // The creation path for the NEXT sketch. The path of what is on the
+  // pedestal travels with its document (doc.kind), not with this choice.
+  const [pathChoice, setPathChoice] = useState<PathId>("monster");
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const { status, error, refresh } = useStatus();
   const [prompt, setPrompt] = useState("");
@@ -63,6 +74,11 @@ export function App(): React.ReactElement {
   }, []);
   // Visual only: no pipeline call is made or skipped.
   const phase = demoHold ? "summoning" : flowPhase(status);
+  // Copy follows whichever path is in play: while sketching, the selector;
+  // while summoning/revealed, the concept or document that owns the moment.
+  const activePath = PATHS[pathChoice];
+  const summonPath = PATHS[pathOfConcept(status) ?? pathChoice];
+  const docPath = lore ? PATHS[lore.kind] : summonPath;
   const loreReady = status?.lore.ready ?? false;
   const modelReady = status?.model.status === "done";
   const assetId = uploadedId ?? status?.upload.assetId ?? null;
@@ -110,7 +126,7 @@ export function App(): React.ReactElement {
     const text = prompt.trim();
     if (!text) return;
     void run("That concept did not come through", async () => {
-      const c = await postConcept(text);
+      const c = await postConcept(text, pathChoice);
       setConcept({ id: c.id, prompt: c.prompt, imageUrl: c.imageUrl, rerolls: (status?.concept.count ?? 0) + 1 });
       setPendingConcept(true);
     }, "Sketching your monster. This takes a few seconds.");
@@ -226,6 +242,7 @@ export function App(): React.ReactElement {
     <>
       <Scene
         phase={phase}
+        pathId={pathOfConcept(status) ?? pathChoice}
         replayNonce={replayNonce}
         status={status}
         monsterUrl={modelReady ? `${GLB_URL}?v=${status?.currentMonsterId ?? "0"}` : null}
@@ -241,7 +258,7 @@ export function App(): React.ReactElement {
 
       <Dock side="right">
         {phase === "reveal" && lore && !pendingConcept
-          ? <LorePanel lore={lore} iconUrl={ICON_URL} />
+          ? <DocPanel doc={lore} iconUrl={ICON_URL} />
           : concept && <ConceptPanel concept={concept} />}
         {phase === "reveal" && !assetId && (
           <PublishPanel
@@ -266,9 +283,9 @@ export function App(): React.ReactElement {
         <h1 className="masthead-title">Monster Workshop</h1>
         <p className="masthead-kicker">
           {phase === "setup" && "First, the keys"}
-          {phase === "create" && "Describe your monster"}
-          {phase === "summoning" && "The summoning"}
-          {phase === "reveal" && "Your monster"}
+          {phase === "create" && activePath.copy.kickerCreate}
+          {phase === "summoning" && summonPath.copy.kickerSummoning}
+          {phase === "reveal" && docPath.copy.kickerReveal}
         </p>
       </header>
 
@@ -281,27 +298,42 @@ export function App(): React.ReactElement {
         )}
 
         {(phase === "create" || (phase === "reveal" && !pendingConcept)) && (
-          <div className="row">
-            <input
-              className="prompt"
-              value={prompt}
-              placeholder={phase === "reveal"
-                ? "Describe another monster"
-                : "A moss-covered lantern beast with too many eyes"}
-              disabled={busy}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") onGenerate(); }}
-            />
-            <button className="btn primary" disabled={busy || !prompt.trim()} onClick={onGenerate}>
-              {busy ? "Sketching" : phase === "reveal" ? "Sketch another" : "Sketch it"}
-            </button>
-          </div>
+          <>
+            <div className="row path-row" role="radiogroup" aria-label="Creation path">
+              {PATH_IDS.map((id) => (
+                <button
+                  key={id}
+                  className="path-chip"
+                  role="radio"
+                  aria-checked={pathChoice === id}
+                  data-active={pathChoice === id || undefined}
+                  disabled={busy}
+                  onClick={() => setPathChoice(id)}
+                >
+                  {PATHS[id].copy.label}
+                </button>
+              ))}
+            </div>
+            <div className="row">
+              <input
+                className="prompt"
+                value={prompt}
+                placeholder={phase === "reveal" ? activePath.copy.placeholderAgain : activePath.copy.placeholder}
+                disabled={busy}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onGenerate(); }}
+              />
+              <button className="btn primary" disabled={busy || !prompt.trim()} onClick={onGenerate}>
+                {busy ? "Sketching" : phase === "reveal" ? activePath.copy.sketchAgainButton : activePath.copy.sketchButton}
+              </button>
+            </div>
+          </>
         )}
 
         {(phase === "create" || pendingConcept) && concept && (
           <div className="row">
             <button className="btn" disabled={busy} onClick={onGenerate}>Reroll</button>
-            <button className="btn primary" disabled={busy} onClick={onApprove}>Summon this one</button>
+            <button className="btn primary" disabled={busy} onClick={onApprove}>{activePath.copy.approveButton}</button>
           </div>
         )}
 
@@ -309,7 +341,7 @@ export function App(): React.ReactElement {
           <p className="hint">
             {status?.model.stage
               ? `${status.model.stage}. Ultra detail takes several minutes.`
-              : "Summoning your monster in ultra detail. This takes several minutes."}
+              : summonPath.copy.summoningHint}
           </p>
         )}
 
@@ -336,7 +368,7 @@ export function App(): React.ReactElement {
               {probing
                 ? "Looking closely at that part..."
                 : (status?.discoveries.length ?? 0) === 0
-                  ? "Your monster has no notes yet. Click any part of it to find out what that is."
+                  ? docPath.copy.discoverHint
                   : `${status?.discoveries.length} discovered. Keep clicking, or hover a marker to read it.`}
             </p>
             <button className="btn quiet" onClick={() => setReplayNonce((n) => n + 1)}>Replay the summoning</button>

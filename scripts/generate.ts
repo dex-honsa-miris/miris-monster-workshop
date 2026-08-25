@@ -21,6 +21,6 @@ const main = async () => {
   await copyFile(join(workshopDir(), "monster.glb"), join(process.cwd(), "public", "generated", "monster.glb"));
   if (iconPng) await writeFile(join(process.cwd(), "public", "generated", "icon.png"), Buffer.from(iconPng));
   if (lore) await writeFile(join(workshopDir(), "lore.json"), JSON.stringify(lore, null, 2));
-  console.log(`\n3/3 saved ${join(workshopDir(), "monster.glb")}${lore ? ` and lore.json - meet ${lore.name} ${lore.epithet}` : ""}`);
+  console.log(`\n3/3 saved ${join(workshopDir(), "monster.glb")}${lore ? ` and lore.json - meet ${lore.name}` : ""}`);
 };
 main().catch((e) => { console.error("\ngeneration failed:", String(e)); process.exit(1); });

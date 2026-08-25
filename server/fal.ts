@@ -1,5 +1,6 @@
-import { ANNOTATE_SYSTEM_PROMPT, annotateIdentity, buildConceptPrompt, buildIconPrompt, LORE_SYSTEM_PROMPT, sanitizeUserPrompt } from "./guardrails";
-import { discoverySchema, loreSchema, type Discovery, type MonsterLore } from "./lore-schema";
+import { buildConceptPrompt, buildIconPrompt, sanitizeUserPrompt } from "./guardrails";
+import { discoverySchema, safeParseDoc, type Discovery, type WorkshopDoc } from "./lore-schema";
+import { PATHS, type PathSpec } from "./paths";
 
 export interface FalDeps {
   key: string;
@@ -215,7 +216,7 @@ export function parseSketchOutput(raw: unknown): { imageUrl: string; styledPromp
   return { imageUrl: url, styledPrompt: styled || null };
 }
 
-export function parseManifestOutput(raw: unknown): { modelUrl: string; lore: MonsterLore | null; iconUrl: string | null } {
+export function parseManifestOutput(raw: unknown): { modelUrl: string; lore: WorkshopDoc | null; iconUrl: string | null } {
   const o = (raw ?? {}) as Record<string, unknown>;
   const modelUrl =
     (typeof o.model_url === "string" && o.model_url) ||
@@ -223,9 +224,9 @@ export function parseManifestOutput(raw: unknown): { modelUrl: string; lore: Mon
     ((o.model_mesh as { url?: string } | undefined)?.url ?? null) || // trellis
     ((o.model as { url?: string } | undefined)?.url ?? null);
   if (!modelUrl) throw new Error("workflow returned no model (expected model_url, model_glb.url, model_mesh.url, or model.url)");
-  let lore: MonsterLore | null = null;
+  let lore: WorkshopDoc | null = null;
   for (const key of ["lore", "details", "monster"]) {
-    const parsed = loreSchema.safeParse(typeof o[key] === "string" ? tryJson(o[key] as string) : o[key]);
+    const parsed = safeParseDoc(typeof o[key] === "string" ? tryJson(o[key] as string) : o[key]);
     if (parsed.success) { lore = parsed.data; break; }
   }
   const iconUrl = (typeof o.icon_url === "string" && o.icon_url) || ((o.icon as { url?: string } | undefined)?.url ?? null);
@@ -237,13 +238,17 @@ function tryJson(text: string): unknown {
 }
 
 /** The lore leg alone (used by the direct manifest path and by lore retry). */
-export async function generateLoreLLM(userText: string, deps: FalDeps): Promise<MonsterLore | null> {
+export async function generateLoreLLM(
+  userText: string,
+  deps: FalDeps,
+  path: PathSpec = PATHS.monster,
+): Promise<WorkshopDoc | null> {
   const out = (await falQueue(MODEL_LLM, {
     model: LORE_MODEL,
-    system_prompt: LORE_SYSTEM_PROMPT,
-    prompt: `The monster was summoned from this description: "${sanitizeUserPrompt(userText)}"`,
+    system_prompt: path.docSystem,
+    prompt: path.directDocPrompt(sanitizeUserPrompt(userText)),
   }, deps)) as { output?: string; text?: string };
-  const parsed = loreSchema.safeParse(tryJson(out.output ?? out.text ?? ""));
+  const parsed = safeParseDoc(tryJson(out.output ?? out.text ?? ""));
   return parsed.success ? parsed.data : null;
 }
 
@@ -251,15 +256,21 @@ export async function sketchMonster(
   userText: string,
   deps: FalDeps,
   workflowId?: string,
+  path: PathSpec = PATHS.monster,
 ): Promise<{ imageUrl: string; styledPrompt: string | null }> {
   if (workflowId) {
-    const out = await falQueue(workflowId, { prompt: sanitizeUserPrompt(userText) }, deps);
+    // The shaper's style bible travels with the request: one workflow, three
+    // paths, and the prompt text lives in the repo instead of the editor.
+    const out = await falQueue(workflowId, {
+      prompt: sanitizeUserPrompt(userText),
+      shaper_system: path.shaperSystem,
+    }, deps);
     return parseSketchOutput(out);
   }
   return { ...(await generateConcept(userText, deps)), styledPrompt: null };
 }
 
-export interface Manifest { glb: ArrayBuffer; lore: MonsterLore | null; iconPng: ArrayBuffer | null }
+export interface Manifest { glb: ArrayBuffer; lore: WorkshopDoc | null; iconPng: ArrayBuffer | null }
 
 async function download(url: string, deps: FalDeps): Promise<ArrayBuffer> {
   const r = await deps.fetch(url, { headers: { Authorization: `Key ${deps.key}` } });
@@ -278,9 +289,15 @@ export async function manifestMonster(
    * that, and they should describe the creature the player asked for, not the
    * image prompt that drew it. */
   texturePrompt?: string | null,
+  path: PathSpec = PATHS.monster,
 ): Promise<Manifest> {
   if (workflowId) {
-    const input: Record<string, unknown> = { prompt: sanitizeUserPrompt(userText), image_url: imageUrl };
+    const input: Record<string, unknown> = {
+      prompt: sanitizeUserPrompt(userText),
+      image_url: imageUrl,
+      doc_system: path.docSystem,
+      icon_system: path.iconSystem,
+    };
     if (texturePrompt) input.texture_prompt = trimTexturePrompt(texturePrompt);
     // The workflow's slowest leg is the 3D node, so the whole run gets the
     // 3D window. Streamed when enabled (real milestones), queued otherwise.
@@ -301,7 +318,7 @@ export async function manifestMonster(
   // Direct path: the same chain as the workflow, three parallel legs.
   const [model, lore, icon] = await Promise.allSettled([
     generateModel(imageUrl, deps, onProgress),
-    generateLoreLLM(userText, deps),
+    generateLoreLLM(userText, deps, path),
     (async () => {
       const out = (await falQueue(MODEL_IMAGE, { prompt: buildIconPrompt(userText), image_size: "square", num_images: 1, enable_safety_checker: true }, deps)) as { images?: Array<{ url?: string }> };
       const url = out.images?.[0]?.url;
@@ -323,14 +340,19 @@ export async function manifestMonster(
 const VISION_MODEL = "anthropic/claude-haiku-4.5";
 
 export async function annotateFeature(
-  input: { closeup: string; context: string; lore: MonsterLore },
+  input: { closeup: string; context: string; lore: WorkshopDoc },
   deps: FalDeps,
 ): Promise<Discovery> {
+  const path = PATHS[input.lore.kind];
+  const identity = path.annotateIdentity({
+    name: input.lore.name,
+    description: "lore" in input.lore ? input.lore.lore : input.lore.description,
+  });
   const out = (await falQueue("fal-ai/any-llm/vision", {
     model: VISION_MODEL,
     image_urls: [input.closeup, input.context],
-    system_prompt: ANNOTATE_SYSTEM_PROMPT,
-    prompt: `${annotateIdentity(input.lore)}\nAnnotate the part centered in the closeup.`,
+    system_prompt: path.annotateSystem,
+    prompt: `${identity}\nAnnotate the part centered in the closeup.`,
   }, deps)) as { output?: string; text?: string };
   const parsed = discoverySchema.safeParse(tryJson(out.output ?? out.text ?? ""));
   if (!parsed.success) throw new Error("the model did not return a usable annotation");

@@ -8,7 +8,8 @@ import { probeFal } from "./probes";
 import { patchState, readState, workshopDir, type MonsterRecord } from "./state";
 import { buildStatus } from "./status";
 import { matteGlb, smoothGlb } from "./mesh-smooth";
-import { parseLore, type MonsterLore } from "./lore-schema";
+import { pathOf } from "./paths";
+import { parseDoc } from "./lore-schema";
 import { deploymentRecord } from "./deploy-core";
 import { workshopEnv } from "./env";
 
@@ -45,7 +46,7 @@ const hintFor = (e: unknown): string => {
 async function adoptCurrentMonster(): Promise<void> {
   const s = await readState();
   if (s.monsters.length > 0 || !existsSync(glbFile()) || !existsSync(loreFile())) return;
-  const lore = parseLore(JSON.parse(await readFile(loreFile(), "utf8")));
+  const lore = parseDoc(JSON.parse(await readFile(loreFile(), "utf8")));
   const id = s.approvedConceptId ?? "adopted";
   const dir = monsterDir(id);
   await mkdir(dir, { recursive: true });
@@ -62,7 +63,8 @@ async function adoptCurrentMonster(): Promise<void> {
       id,
       prompt: s.concepts.find((c) => c.id === id)?.prompt ?? lore.name,
       name: lore.name,
-      epithet: lore.epithet,
+      epithet: docSubtitle(lore),
+      path: lore.kind,
       createdAt: new Date().toISOString(),
       discoveries: s.discoveries,
       assetId: s.upload.assetId,
@@ -81,7 +83,7 @@ function stash(s: { monsters: MonsterRecord[]; currentMonsterId: string | null; 
 }
 
 /** Persist a lore document the workflow produced (or null when it did not). */
-async function recordLore(lore: MonsterLore | null): Promise<void> {
+async function recordLore(lore: import("./lore-schema").WorkshopDoc | null): Promise<void> {
   if (lore) {
     await mkdir(workshopDir(), { recursive: true });
     await writeFile(loreFile(), JSON.stringify(lore, null, 2));
@@ -97,6 +99,13 @@ async function recordLore(lore: MonsterLore | null): Promise<void> {
  * session to "summoning", run the workflow in the background, bank the result.
  * Shared by approve and by summon/retry, so a timed-out generation can be
  * relaunched without re-sketching (and re-paying for) the concept. */
+/** The one-line subtitle each kind carries under its name. */
+function docSubtitle(doc: { kind: string } & Record<string, unknown>): string {
+  if (doc.kind === "product") return String(doc.tagline ?? "");
+  if (doc.kind === "artifact") return String(doc.era ?? "");
+  return String(doc.epithet ?? "");
+}
+
 /** Milestone weights for the manifest workflow's quick legs. The 3D node is
  * the rest of the bar; fal exposes no percentage for it (verified), so the
  * front-end eases through that stretch on a clock. */
@@ -126,7 +135,8 @@ async function reapOrphanedSummon(): Promise<void> {
   });
 }
 
-async function startSummon(concept: { id: string; prompt: string; imageUrl: string; styledPrompt?: string | null }): Promise<void> {
+async function startSummon(concept: { id: string; prompt: string; imageUrl: string; styledPrompt?: string | null; path?: string }): Promise<void> {
+  const path = pathOf(concept.path);
   liveSummons.add(concept.id);
   const s = await readState();
   await patchState({
@@ -166,6 +176,7 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
         manifestWorkflow(),
         onNode,
         concept.styledPrompt,
+        path,
       );
       // Erase the reconstruction lattice before the model goes anywhere:
       // the scene, the bank, and the portal upload all read these files.
@@ -193,7 +204,8 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
         id: concept.id,
         prompt: concept.prompt,
         name: m.lore?.name ?? "Unnamed",
-        epithet: m.lore?.epithet ?? "",
+        epithet: m.lore ? docSubtitle(m.lore) : "",
+        path: path.id,
         createdAt: new Date().toISOString(),
         discoveries: [],
         assetId: null,
@@ -236,7 +248,7 @@ const routes: Record<string, Handler> = {
 
   "GET /api/lore": async () => {
     if (!existsSync(loreFile())) return { status: 404, json: { error: "no lore yet", hint: "Approve a concept first." } };
-    return { status: 200, json: parseLore(JSON.parse(await readFile(loreFile(), "utf8"))) };
+    return { status: 200, json: parseDoc(JSON.parse(await readFile(loreFile(), "utf8"))) };
   },
 
   // Stage 1 SKETCH: the styled concept image (workflow when configured,
@@ -244,8 +256,9 @@ const routes: Record<string, Handler> = {
   // reroll; lore waits for the manifest stage.
   "POST /api/concept": async (body) => {
     const prompt = String(body.prompt ?? "");
-    const { imageUrl, styledPrompt } = await sketchMonster(prompt, { key: env().FAL_KEY!, fetch }, sketchWorkflow());
-    const concept = { id: `c${Date.now()}`, prompt, imageUrl, createdAt: new Date().toISOString(), styledPrompt };
+    const path = pathOf(body.path);
+    const { imageUrl, styledPrompt } = await sketchMonster(prompt, { key: env().FAL_KEY!, fetch }, sketchWorkflow(), path);
+    const concept = { id: `c${Date.now()}`, prompt, imageUrl, createdAt: new Date().toISOString(), styledPrompt, path: path.id };
     const s = await readState();
     await patchState({ concepts: [...s.concepts, concept] });
     return { status: 200, json: concept };
@@ -282,6 +295,7 @@ const routes: Record<string, Handler> = {
   // expensive 3D stage.
   "POST /api/lore/retry": async () => {
     const s = await readState();
+    const retryPath = pathOf(s.concepts.find((c) => c.id === s.approvedConceptId)?.path);
     const concept = s.approvedConceptId
       ? s.concepts.find((c) => c.id === s.approvedConceptId)
       : s.concepts[s.concepts.length - 1];
@@ -291,7 +305,7 @@ const routes: Record<string, Handler> = {
     await patchState({ loreStatus: { status: "running", error: null } });
     void (async () => {
       try {
-        await recordLore(await generateLoreLLM(concept.prompt, { key: env().FAL_KEY!, fetch }));
+        await recordLore(await generateLoreLLM(concept.prompt, { key: env().FAL_KEY!, fetch }, retryPath));
       } catch (e) {
         await patchState({ loreStatus: { status: "failed", error: String(e) } });
       }
@@ -311,7 +325,7 @@ const routes: Record<string, Handler> = {
     if (!closeup.startsWith("data:image/") || !context.startsWith("data:image/")) {
       return { status: 400, json: { error: "missing render", hint: "The app could not capture the click. Try clicking the monster again." } };
     }
-    const lore = parseLore(JSON.parse(await readFile(loreFile(), "utf8")));
+    const lore = parseDoc(JSON.parse(await readFile(loreFile(), "utf8")));
     const found = await annotateFeature({ closeup, context, lore }, { key: env().FAL_KEY!, fetch });
     const point = Array.isArray(body.point) ? (body.point as number[]).slice(0, 3) : [0, 0, 0];
     const entry = {

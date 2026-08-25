@@ -13,6 +13,7 @@ export interface MonsterSummary {
   id: string;
   name: string;
   epithet: string;
+  path: string;
   prompt: string;
   createdAt: string;
   iconUrl: string;
@@ -69,6 +70,7 @@ export async function buildStatus(deps: StatusDeps): Promise<WorkshopStatus> {
       id: m.id,
       name: m.name,
       epithet: m.epithet,
+      path: m.path ?? "monster",
       prompt: m.prompt,
       createdAt: m.createdAt,
       iconUrl: `/generated/bank/${m.id}.png`,
