@@ -15,6 +15,7 @@ import { captureProbe } from "../scene/probe";
 import type { WorkshopDoc } from "../../server/lore-schema";
 import type { WorkshopStatus } from "../../server/status";
 import { PATH_IDS, PATHS, type PathId } from "../../server/paths";
+import { appendSpark, dealSparks, redealOne, type Spark } from "./sparks";
 import type { Concept } from "../../server/state";
 
 const GLB_URL = "/generated/monster.glb";
@@ -49,6 +50,17 @@ export function App(): React.ReactElement {
   // The creation path for the NEXT sketch. The path of what is on the
   // pedestal travels with its document (doc.kind), not with this choice.
   const [pathChoice, setPathChoice] = useState<PathId>("monster");
+  // Spark chips: one fragment per group, redealt on path change, on demand,
+  // and (one at a time) whenever a chip is used.
+  const [sparks, setSparks] = useState<Spark[]>(() => dealSparks(PATHS.monster.sparks));
+  const choosePath = (id: PathId): void => {
+    setPathChoice(id);
+    setSparks(dealSparks(PATHS[id].sparks));
+  };
+  const onSpark = (spark: Spark): void => {
+    setPrompt((cur) => appendSpark(cur, spark.text));
+    setSparks((cur) => cur.map((s) => (s === spark ? redealOne(PATHS[pathChoice].sparks, spark) : s)));
+  };
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const { status, error, refresh } = useStatus();
   const [prompt, setPrompt] = useState("");
@@ -308,11 +320,34 @@ export function App(): React.ReactElement {
                   aria-checked={pathChoice === id}
                   data-active={pathChoice === id || undefined}
                   disabled={busy}
-                  onClick={() => setPathChoice(id)}
+                  onClick={() => choosePath(id)}
                 >
                   {PATHS[id].copy.label}
                 </button>
               ))}
+            </div>
+            <div className="row spark-row" aria-label="Prompt sparks">
+              {sparks.map((sp) => (
+                <button
+                  key={`${sp.group}:${sp.text}`}
+                  className="spark-chip"
+                  disabled={busy}
+                  title={`Add: ${sp.text}`}
+                  onClick={() => onSpark(sp)}
+                >
+                  <span className="spark-plus" aria-hidden="true">+</span>
+                  {sp.text}
+                </button>
+              ))}
+              <button
+                className="spark-redeal"
+                disabled={busy}
+                aria-label="New sparks"
+                title="New sparks"
+                onClick={() => setSparks(dealSparks(PATHS[pathChoice].sparks))}
+              >
+                ↻
+              </button>
             </div>
             <div className="row">
               <input

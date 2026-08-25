@@ -31,9 +31,19 @@ export interface PathCopy {
   discoverHint: string;
 }
 
+/** One spark group: a labelled bag of prompt fragments. The UI shows one
+ * chip per group; tapped chips append to the prompt as editable text. Groups
+ * are ordered so left-to-right taps read as a sentence. */
+export interface SparkGroup {
+  label: string;
+  options: string[];
+}
+
 export interface PathSpec {
   id: PathId;
   copy: PathCopy;
+  /** Blank-page antidote: fragments an attendee can assemble into a prompt. */
+  sparks: SparkGroup[];
   /** Spell VFX tint while this path is generating. */
   spell: { color: number; secondaryColor: number };
   /** System prompt for the sketch workflow's prompt-shaper LLM node. */
@@ -124,6 +134,38 @@ Rules: describe only what you can actually see. Never name a part that is not vi
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Name: ${d.name}. World and tone: ${d.description}`,
     directDocPrompt: (t) => `The monster was summoned from this description: "${t}"`,
+    sparks: [
+      {
+        label: "creature",
+        options: [
+          "a lantern-jawed toad", "a stilt-legged marsh heron", "a two-tailed ember fox",
+          "a moss-backed river turtle", "a barnacle-crusted crab king", "a moth with an owl's face",
+          "a pangolin made for rolling downhill", "a jellyfish that walks on land",
+          "a stout badger knight", "a salamander with a furnace belly", "a snail with a lighthouse shell",
+          "a raccoon oracle",
+        ],
+      },
+      {
+        label: "surface",
+        options: [
+          "covered in cracked terracotta plates", "wrapped in glowing kelp", "armored in acorn caps",
+          "grown over with tiny mushrooms", "plated in tarnished tea-kettle copper",
+          "quilted like a winter blanket", "carved from driftwood", "dusted with chalk and old paint",
+          "scaled like ripe pinecones", "knitted from storm clouds", "tiled like a bathhouse floor",
+          "furred in frost that never melts",
+        ],
+      },
+      {
+        label: "quirk",
+        options: [
+          "that collects lost buttons", "with a teapot growing from its back",
+          "that hums sea shanties when nervous", "with lantern eyes that attract moths",
+          "that hoards umbrellas", "with a birdhouse in its antlers", "that only walks backwards",
+          "with pockets full of thunder", "that brews soup in its shell", "with a moon phase on its brow",
+          "that sneezes fireflies", "with a library of stolen bookmarks",
+        ],
+      },
+    ],
   },
 
   product: {
@@ -177,6 +219,34 @@ Rules: describe only what you can actually see. Never name a component that is n
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Product: ${d.name}. Listing: ${d.description}`,
     directDocPrompt: (t) => `Write the listing for the product described as: "${t}"`,
+    sparks: [
+      {
+        label: "object",
+        options: [
+          "a pour-over kettle", "a desk lamp", "a mechanical keyboard", "a camping lantern",
+          "a chess set", "a record player", "a watering can", "an espresso grinder",
+          "a bedside clock", "a toolbox", "a bicycle bell", "a field binocular set",
+        ],
+      },
+      {
+        label: "materials",
+        options: [
+          "in brushed steel and walnut", "in sandblasted titanium", "in matte ceramic and cork",
+          "in anodized sage-green aluminum", "in oiled leather and brass", "in smoked oak",
+          "in recycled ocean plastic", "in cast iron with enamel", "in bamboo and canvas",
+          "in bead-blasted copper", "in stone-gray polymer", "in birch ply and felt",
+        ],
+      },
+      {
+        label: "feature",
+        options: [
+          "with a hidden compartment", "with modular magnetic parts", "with a wind-up mechanism",
+          "with a built-in level", "that packs flat for travel", "with a single satisfying dial",
+          "with swappable faceplates", "that doubles as a bookend", "with a braille-friendly grip",
+          "with a lifetime-service hatch", "that stacks like cordwood", "with a solar cell in the lid",
+        ],
+      },
+    ],
   },
 
   artifact: {
@@ -229,6 +299,34 @@ Rules: describe only what you can actually see. Never name a detail that is not 
 ${ANNOTATE_SHAPE}`,
     annotateIdentity: (d) => `Artifact: ${d.name}. Exhibit label: ${d.description}`,
     directDocPrompt: (t) => `Write the exhibit label for the artifact described as: "${t}"`,
+    sparks: [
+      {
+        label: "object",
+        options: [
+          "a ceremonial mask", "an astrolabe", "a drinking horn", "a signet ring",
+          "a board game set", "a navigator's compass", "an oil lamp", "a war drum",
+          "a reliquary box", "a sundial", "a merchant's scale", "a comb",
+        ],
+      },
+      {
+        label: "origin",
+        options: [
+          "from Bronze Age Crete", "from Song dynasty China", "from a Viking hoard",
+          "from Mughal-era Lahore", "from a Silk Road caravan", "from Benin's brass workshops",
+          "from Edo-period Kyoto", "from a sunken Venetian galley", "from Inca terraces",
+          "from a Baltic amber route", "from Ptolemaic Alexandria", "from a Bavarian monastery",
+        ],
+      },
+      {
+        label: "detail",
+        options: [
+          "engraved with wave patterns", "worn smooth by centuries of hands", "inlaid with mother-of-pearl",
+          "repaired long ago with gold seams", "carved from a single whale bone", "stained with indigo",
+          "wrapped in silver wire", "bearing a maker's thumbprint", "scorched on one side",
+          "with an inscription no one has translated", "missing one famous piece", "smelling faintly of cedar",
+        ],
+      },
+    ],
   },
 };
 
