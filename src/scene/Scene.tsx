@@ -156,44 +156,59 @@ function SummonBloom({ flashRef }: { flashRef: { current: number } }): React.Rea
   );
 }
 
-/** Key and fill that follow the camera.
+/** A three-point rig that follows the camera.
  *
- * A world-fixed key makes orbiting a lighting tour instead of a model tour:
- * measured across a 360 orbit, scene brightness swung ~30% and the far side
- * was a silhouette. A showcase turntable wants the opposite -- the model
- * reads the same from every angle -- so the key rides above-right of
- * whatever the camera is, and a soft fill rides its left. The environment
- * stays world-fixed as ambient, which keeps just enough directional variety
- * for the surface to feel lit rather than flat. */
+ * A world-fixed key makes orbiting a lighting tour instead of a model tour
+ * (the far side was a silhouette), while a light ON the camera axis is a
+ * camera flash: every surface facing the viewer is lit evenly and the form
+ * goes flat. The middle ground is classic portrait lighting that rides
+ * along: the key sits WELL off the view axis (about 45 degrees right and
+ * up), so shading always rakes across the visible side; a dim fill keeps
+ * the shadowed side legible without erasing it; and a rim behind the
+ * creature separates its dark edge from the dark chamber. All three follow
+ * the camera, so the modelling is identical from every angle, and the
+ * world-fixed environment supplies the last bit of ambient variety. */
 function CameraLights(): React.ReactElement {
   const key = useRef<THREE.SpotLight>(null);
   const fill = useRef<THREE.DirectionalLight>(null);
+  const rim = useRef<THREE.DirectionalLight>(null);
   const camera = useThree((s) => s.camera);
   const right = useMemo(() => new THREE.Vector3(), []);
   const up = useMemo(() => new THREE.Vector3(), []);
+  const back = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
     camera.updateMatrixWorld();
     right.setFromMatrixColumn(camera.matrixWorld, 0);
     up.setFromMatrixColumn(camera.matrixWorld, 1);
+    // From the camera PAST the subject: where a rim light lives.
+    back.copy(camera.position).negate().setY(0).normalize();
+
     const k = key.current;
     if (k) {
-      k.position.copy(camera.position).addScaledVector(right, 2.2).addScaledVector(up, 2.6);
+      k.position.copy(camera.position).addScaledVector(right, 4.5).addScaledVector(up, 3.6);
       k.target.position.set(0, 1, 0);
       k.target.updateMatrixWorld();
     }
     const f = fill.current;
     if (f) {
-      f.position.copy(camera.position).addScaledVector(right, -2.6).addScaledVector(up, 0.6);
+      f.position.copy(camera.position).addScaledVector(right, -3.0).addScaledVector(up, 0.4);
       f.target.position.set(0, 1, 0);
       f.target.updateMatrixWorld();
+    }
+    const r = rim.current;
+    if (r) {
+      r.position.set(0, 1, 0).addScaledVector(back, 4).add(up.set(0, 3, 0));
+      r.target.position.set(0, 1, 0);
+      r.target.updateMatrixWorld();
     }
   });
 
   return (
     <>
-      <spotLight ref={key} color={0xf4f5f8} intensity={140} distance={16} angle={0.8} penumbra={0.6} />
-      <directionalLight ref={fill} color={0xdfe4ef} intensity={0.9} />
+      <spotLight ref={key} color={0xf4f5f8} intensity={200} distance={20} angle={0.7} penumbra={0.7} />
+      <directionalLight ref={fill} color={0xdfe4ef} intensity={0.28} />
+      <directionalLight ref={rim} color={0xcfd8ea} intensity={1.6} />
     </>
   );
 }
