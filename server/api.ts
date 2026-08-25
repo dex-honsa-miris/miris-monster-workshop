@@ -7,6 +7,7 @@ import { annotateFeature, generateLoreLLM, manifestMonster, MANIFEST_WORKFLOW, s
 import { probeFal } from "./probes";
 import { patchState, readState, workshopDir, type MonsterRecord } from "./state";
 import { buildStatus } from "./status";
+import { smoothGlb } from "./mesh-smooth";
 import { parseLore, type MonsterLore } from "./lore-schema";
 import { deploymentRecord } from "./deploy-core";
 import { workshopEnv } from "./env";
@@ -166,9 +167,12 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
         onNode,
         concept.styledPrompt,
       );
+      // Erase the reconstruction lattice before the model goes anywhere:
+      // the scene, the bank, and the portal upload all read these files.
+      const glb = smoothGlb(m.glb);
       await mkdir(workshopDir(), { recursive: true });
       await mkdir(join(process.cwd(), "public", "generated"), { recursive: true });
-      await writeFile(glbFile(), Buffer.from(m.glb));
+      await writeFile(glbFile(), Buffer.from(glb));
       await copyFile(glbFile(), join(publicGenerated(), "monster.glb"));
       if (m.iconPng) await writeFile(join(publicGenerated(), "icon.png"), Buffer.from(m.iconPng));
       await recordLore(m.lore);
@@ -178,7 +182,7 @@ async function startSummon(concept: { id: string; prompt: string; imageUrl: stri
       const dir = monsterDir(concept.id);
       await mkdir(dir, { recursive: true });
       await mkdir(join(publicGenerated(), "bank"), { recursive: true });
-      await writeFile(join(dir, "monster.glb"), Buffer.from(m.glb));
+      await writeFile(join(dir, "monster.glb"), Buffer.from(glb));
       if (m.lore) await writeFile(join(dir, "lore.json"), JSON.stringify(m.lore, null, 2));
       if (m.iconPng) {
         await writeFile(join(dir, "icon.png"), Buffer.from(m.iconPng));
